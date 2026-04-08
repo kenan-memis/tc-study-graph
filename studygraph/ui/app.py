@@ -137,6 +137,17 @@ def _course_progress(history: list[dict]) -> list[tuple[str, float, int]]:
     return sorted(result, key=lambda x: x[0].lower())
 
 
+def _normalize_course(course: str) -> str:
+    return (course or "").strip().lower()
+
+
+def _filter_history_by_course(history: list, course: str) -> list:
+    target = _normalize_course(course)
+    if not target:
+        return []
+    return [h for h in history if _normalize_course(h.course) == target]
+
+
 def _history_rows(history: list) -> list[dict]:
     rows = []
     for record in reversed(history):
@@ -413,20 +424,31 @@ def main() -> None:
             except Exception as exc:
                 st.error(f"Failed to evaluate quiz: {exc}")
 
+    history = store.load_session_history(active_profile_id)
+    selected_course_history = _filter_history_by_course(history, course)
     st.divider()
     st.subheader("Progress and Suggestions")
-    history = store.load_session_history(active_profile_id)
-    if st.button("Do you have suggestions for me?"):
-        if not history:
-            st.info("No study sessions yet. Complete one session first to get personalized suggestions.")
-        else:
-            overall = round(sum(h.score_percent for h in history) / len(history), 1)
-            weak_summary_for_suggestion = store.weak_topics_summary(active_profile_id, top_n=3)
-            weak_text = ", ".join([w for w, _ in weak_summary_for_suggestion]) or "none"
-            st.info(
-                f"Overall progress: {overall}%. Next recommendation: focus on weak areas ({weak_text}) "
-                "and then retry the same topic with exam_preparation goal."
+    if selected_course_history:
+        if st.button("Do you have suggestions for me?"):
+            course_avg = round(
+                sum(h.score_percent for h in selected_course_history) / len(selected_course_history), 1
             )
+            course_weak_counter: dict[str, int] = {}
+            for row in selected_course_history:
+                for concept in row.weak_concepts:
+                    course_weak_counter[concept] = course_weak_counter.get(concept, 0) + 1
+            top_weak = sorted(course_weak_counter.items(), key=lambda x: x[1], reverse=True)[:3]
+            weak_text = ", ".join([w for w, _ in top_weak]) or "none"
+            st.info(
+                f"{course} progress: {course_avg}% across {len(selected_course_history)} session(s). "
+                f"Suggested focus: {weak_text}. "
+                f"Next step: continue {course} with 'Exam preparation' after revising weak concepts."
+            )
+    else:
+        st.caption(
+            f"No previous sessions for '{course}' yet. "
+            "Complete one quiz in this course to unlock course-specific suggestions."
+        )
 
     st.divider()
     st.subheader("History")
