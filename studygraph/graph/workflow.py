@@ -16,6 +16,15 @@ class PrepareState(TypedDict, total=False):
     session_input: dict[str, Any]
     profile: dict[str, Any]
     study_plan: str
+    study_material: str
+    quiz_questions: list[dict[str, Any]]
+    error: str
+
+
+class QuizState(TypedDict, total=False):
+    profile_id: str
+    session_input: dict[str, Any]
+    profile: dict[str, Any]
     quiz_questions: list[dict[str, Any]]
     error: str
 
@@ -103,6 +112,43 @@ def _generate_quiz_with_openai(topic: str, course: str, level: str, language: st
         return _fallback_quiz(topic)
 
 
+def _build_material_with_openai(topic: str, course: str, level: str, language: str) -> str:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return (
+            f"Topic summary for {topic} ({course}):\n"
+            "- Core definition and why it matters.\n"
+            "- 2-3 key rules/formulas.\n"
+            "- One short example with explanation.\n"
+            "- Common mistakes to avoid.\n"
+        )
+
+    client = OpenAI(api_key=api_key, timeout=10.0)
+    prompt = (
+        "Create concise study material in plain text with bullets. "
+        f"Course: {course}. Topic: {topic}. Student level: {level}. Language: {language}. "
+        "Sections: core concept, key points, worked mini-example, common mistakes. "
+        "Keep it under 220 words."
+    )
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            temperature=0.4,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=420,
+        )
+        content = (resp.choices[0].message.content or "").strip()
+        return content or f"Study material could not be generated for {topic}."
+    except Exception:
+        return (
+            f"Topic summary for {topic} ({course}):\n"
+            "- Core definition and why it matters.\n"
+            "- 2-3 key rules/formulas.\n"
+            "- One short example with explanation.\n"
+            "- Common mistakes to avoid.\n"
+        )
+
+
 def build_prepare_graph(store: MemoryStore):
     def load_profile_node(state: PrepareState) -> PrepareState:
         profile_id = state["profile_id"]
@@ -125,7 +171,36 @@ def build_prepare_graph(store: MemoryStore):
         )
         return {"study_plan": plan}
 
-    def generate_quiz_node(state: PrepareState) -> PrepareState:
+    def build_material_node(state: PrepareState) -> PrepareState:
+        profile = StudentProfile.model_validate(state["profile"])
+        session = StudySessionInput.model_validate(state["session_input"])
+        material = _build_material_with_openai(
+            topic=session.topic,
+            course=session.course,
+            level=profile.education_level,
+            language=profile.preferred_language,
+        )
+        return {"study_material": material}
+
+    graph = StateGraph(PrepareState)
+    graph.add_node("load_profile", load_profile_node)
+    graph.add_node("build_study_plan", build_study_plan_node)
+    graph.add_node("build_material", build_material_node)
+    graph.add_edge(START, "load_profile")
+    graph.add_edge("load_profile", "build_study_plan")
+    graph.add_edge("build_study_plan", "build_material")
+    graph.add_edge("build_material", END)
+    return graph.compile()
+
+
+def build_quiz_graph(store: MemoryStore):
+    def load_profile_node(state: QuizState) -> QuizState:
+        profile = store.load_profile(state["profile_id"])
+        if profile is None:
+            return {"error": f"Profile '{state['profile_id']}' was not found."}
+        return {"profile": profile.model_dump()}
+
+    def generate_quiz_node(state: QuizState) -> QuizState:
         profile = StudentProfile.model_validate(state["profile"])
         session = StudySessionInput.model_validate(state["session_input"])
         questions = _generate_quiz_with_openai(
@@ -136,13 +211,11 @@ def build_prepare_graph(store: MemoryStore):
         )
         return {"quiz_questions": [q.model_dump() for q in questions]}
 
-    graph = StateGraph(PrepareState)
+    graph = StateGraph(QuizState)
     graph.add_node("load_profile", load_profile_node)
-    graph.add_node("build_study_plan", build_study_plan_node)
     graph.add_node("generate_quiz", generate_quiz_node)
     graph.add_edge(START, "load_profile")
-    graph.add_edge("load_profile", "build_study_plan")
-    graph.add_edge("build_study_plan", "generate_quiz")
+    graph.add_edge("load_profile", "generate_quiz")
     graph.add_edge("generate_quiz", END)
     return graph.compile()
 

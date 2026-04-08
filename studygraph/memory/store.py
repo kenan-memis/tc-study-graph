@@ -37,6 +37,14 @@ class MemoryStore:
             i += 1
         return f"{base}-{i}"
 
+    def find_duplicate_profile(self, profile: StudentProfile) -> str | None:
+        target = profile.model_dump()
+        for profile_id in self.list_profile_ids():
+            loaded = self.load_profile(profile_id)
+            if loaded and loaded.model_dump() == target:
+                return profile_id
+        return None
+
     def _profile_dir(self, profile_id: str) -> Path:
         p = self.profiles_dir / profile_id
         p.mkdir(parents=True, exist_ok=True)

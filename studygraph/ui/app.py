@@ -3,12 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 import os
 from typing import Generator
+from datetime import datetime, timezone
 
 import streamlit as st
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from studygraph.graph import build_evaluation_graph, build_prepare_graph
+from studygraph.graph import build_evaluation_graph, build_prepare_graph, build_quiz_graph
 from studygraph.memory import MemoryStore
 from studygraph.models import StudySessionInput, StudentProfile
 
@@ -119,6 +120,44 @@ def _render_footer() -> None:
         unsafe_allow_html=True,
     )
 
+def _course_progress(history: list[dict]) -> list[tuple[str, float, int]]:
+    sums: dict[str, float] = {}
+    counts: dict[str, int] = {}
+    for item in history:
+        course = item.get("course", "").strip()
+        score = float(item.get("score_percent", 0.0))
+        if not course:
+            continue
+        sums[course] = sums.get(course, 0.0) + score
+        counts[course] = counts.get(course, 0) + 1
+    result = []
+    for course, total in sums.items():
+        cnt = counts[course]
+        result.append((course, round(total / cnt, 1), cnt))
+    return sorted(result, key=lambda x: x[0].lower())
+
+
+def _history_rows(history: list) -> list[dict]:
+    rows = []
+    for record in reversed(history):
+        ts = record.created_at
+        try:
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            ts = dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        except Exception:
+            pass
+        rows.append(
+            {
+                "When": ts,
+                "Course": record.course,
+                "Topic": record.topic,
+                "Score (%)": record.score_percent,
+                "Weak Concepts": ", ".join(record.weak_concepts[:3]) if record.weak_concepts else "-",
+            }
+        )
+    return rows
+
+
 def main() -> None:
     st.set_page_config(page_title="StudyGraph", page_icon="📘", layout="wide")
     st.title("StudyGraph")
@@ -132,24 +171,41 @@ def main() -> None:
 
     with st.sidebar.expander("Create or update profile", expanded=True):
         learner_name = st.text_input("Learner name", value="Student One")
+        education_options = {
+            "Primary": "primary",
+            "Middle": "middle",
+            "High": "high",
+            "University exam prep": "university_exam_prep",
+        }
         education_level = st.selectbox(
             "Education level",
-            options=["primary", "middle", "high", "university_exam_prep"],
+            options=list(education_options.keys()),
             index=2,
         )
         preferred_language = st.selectbox("Preferred language", options=["English"], index=0)
-        preferred_difficulty = st.selectbox("Preferred difficulty", options=["easy", "medium", "hard"], index=1)
-        preferred_pace = st.selectbox("Preferred pace", options=["slow", "balanced", "fast"], index=1)
+        difficulty_options = {"Easy": "easy", "Medium": "medium", "Hard": "hard"}
+        pace_options = {"Slow": "slow", "Balanced": "balanced", "Fast": "fast"}
+        preferred_difficulty = st.selectbox(
+            "Preferred difficulty", options=list(difficulty_options.keys()), index=1
+        )
+        preferred_pace = st.selectbox("Preferred pace", options=list(pace_options.keys()), index=1)
 
         if st.button("Save as new profile"):
             try:
                 profile = StudentProfile(
                     learner_name=learner_name,
-                    education_level=education_level,
+                    education_level=education_options[education_level],
                     preferred_language=preferred_language,
-                    preferred_difficulty=preferred_difficulty,
-                    preferred_pace=preferred_pace,
+                    preferred_difficulty=difficulty_options[preferred_difficulty],
+                    preferred_pace=pace_options[preferred_pace],
                 )
+                duplicate_id = store.find_duplicate_profile(profile)
+                if duplicate_id is not None:
+                    st.warning(
+                        f"An identical profile already exists: `{duplicate_id}`. "
+                        "Please select it from the profile list or update that profile."
+                    )
+                    st.stop()
                 new_id = store.create_profile_id(profile.learner_name)
                 store.save_profile(new_id, profile)
                 st.success(f"Created profile: {new_id}")
@@ -161,10 +217,10 @@ def main() -> None:
             try:
                 profile = StudentProfile(
                     learner_name=learner_name,
-                    education_level=education_level,
+                    education_level=education_options[education_level],
                     preferred_language=preferred_language,
-                    preferred_difficulty=preferred_difficulty,
-                    preferred_pace=preferred_pace,
+                    preferred_difficulty=difficulty_options[preferred_difficulty],
+                    preferred_pace=pace_options[preferred_pace],
                 )
                 store.save_profile(active_profile_id, profile)
                 st.success(f"Updated profile: {active_profile_id}")
@@ -184,13 +240,37 @@ def main() -> None:
     st.subheader(f"Active profile: `{active_profile_id}`")
     st.json(profile.model_dump())
 
+    previous_active = st.session_state.get("active_profile_id")
+    if previous_active != active_profile_id:
+        # Clear stale per-profile session states when user switches profile.
+        for key in [
+            "current_session_input",
+            "current_study_plan",
+            "current_study_material",
+            "current_quiz",
+            "just_streamed_study_plan",
+            "latest_recommendation",
+        ]:
+            st.session_state.pop(key, None)
+        st.session_state["active_profile_id"] = active_profile_id
+
     st.divider()
     st.subheader("Start Study Session")
     course = st.text_input("Course", value="Math")
     topic = st.text_input("Topic", value="Algebra basics")
-    study_goal = st.text_input("Study goal", value="quick revision")
+    study_goal = st.selectbox(
+        "Study goal",
+        options=[
+            "Quick revision",
+            "Deep understanding",
+            "Exam preparation",
+            "Practice only",
+            "Mistake correction",
+        ],
+        index=0,
+    )
 
-    if st.button("Generate plan and quiz", type="primary"):
+    if st.button("Generate plan and study material", type="primary"):
         try:
             session_input = StudySessionInput(course=course, topic=topic, study_goal=study_goal)
             prepare_graph = build_prepare_graph(store)
@@ -201,8 +281,9 @@ def main() -> None:
                 st.error(result["error"])
             else:
                 st.session_state["current_session_input"] = session_input.model_dump()
-                st.session_state["current_quiz"] = result.get("quiz_questions", [])
+                st.session_state["current_quiz"] = []
                 fallback_plan = result.get("study_plan", "")
+                fallback_material = result.get("study_material", "")
                 weak_summary = store.weak_topics_summary(active_profile_id, top_n=3)
                 stream_prompt = _build_study_plan_stream_prompt(profile, session_input, weak_summary)
                 st.markdown("### Study plan")
@@ -210,8 +291,9 @@ def main() -> None:
                     _stream_text_from_openai(stream_prompt, fallback_plan)
                 )
                 st.session_state["current_study_plan"] = streamed_plan or fallback_plan
+                st.session_state["current_study_material"] = fallback_material
                 st.session_state["just_streamed_study_plan"] = True
-                st.success("Study plan and quiz ready.")
+                st.success("Study plan and material ready.")
         except Exception as exc:
             st.error(f"Failed to prepare study session: {exc}")
 
@@ -221,6 +303,43 @@ def main() -> None:
         st.markdown("### Study plan")
         st.write(st.session_state["current_study_plan"])
     st.session_state["just_streamed_study_plan"] = False
+
+    if st.session_state.get("current_study_material"):
+        st.markdown("### Study Material Summary")
+        st.write(st.session_state["current_study_material"])
+
+        material_export = (
+            "StudyGraph - Study Material\n\n"
+            f"Course: {st.session_state.get('current_session_input', {}).get('course', '')}\n"
+            f"Topic: {st.session_state.get('current_session_input', {}).get('topic', '')}\n"
+            f"Goal: {st.session_state.get('current_session_input', {}).get('study_goal', '')}\n\n"
+            f"Study Plan:\n{st.session_state.get('current_study_plan', '')}\n\n"
+            f"Material:\n{st.session_state.get('current_study_material', '')}\n"
+        )
+        st.download_button(
+            "Download study material (.txt)",
+            data=material_export.encode("utf-8"),
+            file_name="study_material.txt",
+            mime="text/plain",
+        )
+
+    if st.session_state.get("current_session_input") and not st.session_state.get("current_quiz"):
+        if st.button("Start Quiz"):
+            try:
+                quiz_graph = build_quiz_graph(store)
+                quiz_result = quiz_graph.invoke(
+                    {
+                        "profile_id": active_profile_id,
+                        "session_input": st.session_state["current_session_input"],
+                    }
+                )
+                if quiz_result.get("error"):
+                    st.error(quiz_result["error"])
+                else:
+                    st.session_state["current_quiz"] = quiz_result.get("quiz_questions", [])
+                    st.success("Quiz generated. Continue with exercises below.")
+            except Exception as exc:
+                st.error(f"Failed to generate quiz: {exc}")
 
     quiz_questions = st.session_state.get("current_quiz", [])
     if quiz_questions:
@@ -278,12 +397,39 @@ def main() -> None:
                     st.session_state["latest_recommendation"] = (
                         streamed_recommendation or fallback_recommendation
                     )
+                    weak_concepts = eval_result.get("weak_concepts", [])
+                    st.markdown("### Knowledge Summary")
+                    if score_percent >= 85:
+                        st.success("Strong understanding for this topic. You are ready to progress.")
+                    elif score_percent >= 60:
+                        st.info("Moderate understanding. One more focused practice round is recommended.")
+                    else:
+                        st.warning("Foundational understanding needs improvement before moving on.")
+                    st.write(
+                        f"- Topic: {st.session_state['current_session_input']['topic']}\n"
+                        f"- Score: {score_percent}%\n"
+                        f"- Weak concepts detected: {len(weak_concepts)}"
+                    )
             except Exception as exc:
                 st.error(f"Failed to evaluate quiz: {exc}")
 
     st.divider()
-    st.subheader("Profile Memory Snapshot")
+    st.subheader("Progress and Suggestions")
     history = store.load_session_history(active_profile_id)
+    if st.button("Do you have suggestions for me?"):
+        if not history:
+            st.info("No study sessions yet. Complete one session first to get personalized suggestions.")
+        else:
+            overall = round(sum(h.score_percent for h in history) / len(history), 1)
+            weak_summary_for_suggestion = store.weak_topics_summary(active_profile_id, top_n=3)
+            weak_text = ", ".join([w for w, _ in weak_summary_for_suggestion]) or "none"
+            st.info(
+                f"Overall progress: {overall}%. Next recommendation: focus on weak areas ({weak_text}) "
+                "and then retry the same topic with exam_preparation goal."
+            )
+
+    st.divider()
+    st.subheader("History")
     st.caption(f"Total sessions: {len(history)}")
     weak_summary = store.weak_topics_summary(active_profile_id, top_n=5)
     if weak_summary:
@@ -292,6 +438,17 @@ def main() -> None:
             st.write(f"- {concept} ({count})")
     else:
         st.write("No weak concepts recorded yet.")
+
+    progress_rows = _course_progress([h.model_dump() for h in history])
+    if progress_rows:
+        st.markdown("### Progress by Course")
+        for course_name, avg_score, sessions in progress_rows:
+            st.write(f"- {course_name}: {avg_score}% average across {sessions} session(s)")
+
+    history_rows = _history_rows(history)
+    if history_rows:
+        st.markdown("### Session History")
+        st.dataframe(history_rows, use_container_width=True)
 
     _render_footer()
 

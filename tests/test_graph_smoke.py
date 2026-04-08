@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from studygraph.graph import build_evaluation_graph, build_prepare_graph
+from studygraph.graph import build_evaluation_graph, build_prepare_graph, build_quiz_graph
 from studygraph.memory import MemoryStore
 from studygraph.models import StudentProfile
 
@@ -27,7 +27,16 @@ def test_prepare_and_evaluation_graph_smoke(tmp_path: Path) -> None:
         }
     )
     assert prepare_out.get("study_plan")
-    quiz = prepare_out.get("quiz_questions")
+    assert prepare_out.get("study_material")
+
+    quiz_graph = build_quiz_graph(store)
+    quiz_out = quiz_graph.invoke(
+        {
+            "profile_id": profile_id,
+            "session_input": {"course": "Math", "topic": "Algebra", "study_goal": "practice"},
+        }
+    )
+    quiz = quiz_out.get("quiz_questions")
     assert isinstance(quiz, list) and len(quiz) == 5
 
     # Use correct answers to force a high score path.
