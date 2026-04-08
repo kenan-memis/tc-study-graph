@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
+from typing import Generator
 
 import streamlit as st
 from dotenv import load_dotenv
+from openai import OpenAI
 
 from studygraph.graph import build_evaluation_graph, build_prepare_graph
 from studygraph.memory import MemoryStore
@@ -16,6 +19,73 @@ load_dotenv()
 def _store() -> MemoryStore:
     root = Path(__file__).resolve().parents[2]
     return MemoryStore(base_dir=root / "data" / "memory")
+
+
+def _stream_text_from_openai(prompt: str, fallback_text: str) -> Generator[str, None, None]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        yield fallback_text
+        return
+
+    try:
+        client = OpenAI(api_key=api_key, timeout=20.0)
+        stream = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a concise and encouraging study coach. "
+                        "Return plain text only."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.4,
+            stream=True,
+        )
+        emitted = False
+        for chunk in stream:
+            token = chunk.choices[0].delta.content or ""
+            if token:
+                emitted = True
+                yield token
+        if not emitted:
+            yield fallback_text
+    except Exception:
+        yield fallback_text
+
+
+def _build_study_plan_stream_prompt(
+    profile: StudentProfile,
+    session_input: StudySessionInput,
+    weak_summary: list[tuple[str, int]],
+) -> str:
+    weak_text = ", ".join([f"{name} ({count})" for name, count in weak_summary]) or "none yet"
+    return (
+        f"Create a concise study plan for {profile.learner_name}. "
+        f"Education level: {profile.education_level}. Language: {profile.preferred_language}. "
+        f"Course: {session_input.course}. Topic: {session_input.topic}. Goal: {session_input.study_goal}. "
+        f"Historical weak concepts: {weak_text}. "
+        "Provide a practical plan in 4-6 bullet points."
+    )
+
+
+def _build_recommendation_stream_prompt(
+    profile: StudentProfile,
+    session_input: StudySessionInput,
+    score_percent: float,
+    feedback: list[str],
+) -> str:
+    feedback_text = " | ".join(feedback[:3]) if feedback else "No major mistakes."
+    return (
+        f"Write a short next-step recommendation for a student. "
+        f"Name: {profile.learner_name}. Level: {profile.education_level}. "
+        f"Course: {session_input.course}. Topic: {session_input.topic}. "
+        f"Score: {score_percent}%. Key mistakes: {feedback_text}. "
+        "Return 3-5 concise bullet points."
+    )
+
 
 def _render_footer() -> None:
     st.markdown(
@@ -132,14 +202,25 @@ def main() -> None:
             else:
                 st.session_state["current_session_input"] = session_input.model_dump()
                 st.session_state["current_quiz"] = result.get("quiz_questions", [])
-                st.session_state["current_study_plan"] = result.get("study_plan", "")
+                fallback_plan = result.get("study_plan", "")
+                weak_summary = store.weak_topics_summary(active_profile_id, top_n=3)
+                stream_prompt = _build_study_plan_stream_prompt(profile, session_input, weak_summary)
+                st.markdown("### Study plan")
+                streamed_plan = st.write_stream(
+                    _stream_text_from_openai(stream_prompt, fallback_plan)
+                )
+                st.session_state["current_study_plan"] = streamed_plan or fallback_plan
+                st.session_state["just_streamed_study_plan"] = True
                 st.success("Study plan and quiz ready.")
         except Exception as exc:
             st.error(f"Failed to prepare study session: {exc}")
 
-    if st.session_state.get("current_study_plan"):
+    if st.session_state.get("current_study_plan") and not st.session_state.get(
+        "just_streamed_study_plan", False
+    ):
         st.markdown("### Study plan")
         st.write(st.session_state["current_study_plan"])
+    st.session_state["just_streamed_study_plan"] = False
 
     quiz_questions = st.session_state.get("current_quiz", [])
     if quiz_questions:
@@ -169,14 +250,34 @@ def main() -> None:
                     st.error(eval_result["error"])
                 else:
                     st.markdown("### Results")
-                    st.metric("Score", f"{eval_result.get('score_percent', 0)}%")
+                    score_percent = float(eval_result.get("score_percent", 0))
+                    st.metric("Score", f"{score_percent}%")
                     feedback = eval_result.get("feedback", [])
                     if feedback:
                         st.markdown("**Feedback on mistakes**")
                         for line in feedback:
                             st.write(f"- {line}")
                     st.markdown("### Recommendation")
-                    st.info(eval_result.get("recommendation", "No recommendation available."))
+                    session_input = StudySessionInput.model_validate(
+                        st.session_state["current_session_input"]
+                    )
+                    fallback_recommendation = eval_result.get(
+                        "recommendation", "No recommendation available."
+                    )
+                    recommendation_prompt = _build_recommendation_stream_prompt(
+                        profile=profile,
+                        session_input=session_input,
+                        score_percent=score_percent,
+                        feedback=feedback,
+                    )
+                    streamed_recommendation = st.write_stream(
+                        _stream_text_from_openai(
+                            recommendation_prompt, str(fallback_recommendation)
+                        )
+                    )
+                    st.session_state["latest_recommendation"] = (
+                        streamed_recommendation or fallback_recommendation
+                    )
             except Exception as exc:
                 st.error(f"Failed to evaluate quiz: {exc}")
 
