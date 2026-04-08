@@ -1,0 +1,208 @@
+from __future__ import annotations
+
+import json
+import os
+from typing import Any, TypedDict
+
+from langgraph.graph import END, START, StateGraph
+from openai import OpenAI
+
+from studygraph.memory import MemoryStore
+from studygraph.models import QuizQuestion, SessionRecord, StudySessionInput, StudentProfile
+
+
+class PrepareState(TypedDict, total=False):
+    profile_id: str
+    session_input: dict[str, Any]
+    profile: dict[str, Any]
+    study_plan: str
+    quiz_questions: list[dict[str, Any]]
+    error: str
+
+
+class EvaluateState(TypedDict, total=False):
+    profile_id: str
+    session_input: dict[str, Any]
+    profile: dict[str, Any]
+    quiz_questions: list[dict[str, Any]]
+    answers: list[str]
+    score_percent: float
+    weak_concepts: list[str]
+    feedback: list[str]
+    recommendation: str
+    error: str
+
+
+def _fallback_quiz(topic: str) -> list[QuizQuestion]:
+    return [
+        QuizQuestion(
+            question=f"What is the best summary of {topic}?",
+            options=["A core concept", "An unrelated topic", "A sports rule", "A random city"],
+            correct_answer="A core concept",
+            explanation=f"{topic} should be understood through its core concepts and definitions.",
+        ),
+        QuizQuestion(
+            question=f"Which approach helps learn {topic} best?",
+            options=["Active recall", "Never practicing", "Ignoring mistakes", "Skipping feedback"],
+            correct_answer="Active recall",
+            explanation="Active recall and spaced practice are reliable study methods.",
+        ),
+        QuizQuestion(
+            question="What should you do after a wrong answer?",
+            options=["Review the mistake", "Ignore it", "Memorize blindly", "Stop practicing"],
+            correct_answer="Review the mistake",
+            explanation="Mistake review is the fastest way to improve weak concepts.",
+        ),
+        QuizQuestion(
+            question="What is a good exam strategy?",
+            options=["Practice regularly", "Cram once", "Skip hard topics", "Avoid testing"],
+            correct_answer="Practice regularly",
+            explanation="Frequent short practice sessions improve retention.",
+        ),
+        QuizQuestion(
+            question="What data is useful for personalized study?",
+            options=["Past weak topics", "Random guesses", "None", "Only study date"],
+            correct_answer="Past weak topics",
+            explanation="Weak-topic history helps adapt future study recommendations.",
+        ),
+    ]
+
+
+def _generate_quiz_with_openai(topic: str, course: str, level: str, language: str) -> list[QuizQuestion]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return _fallback_quiz(topic)
+
+    client = OpenAI(api_key=api_key, timeout=10.0)
+    prompt = (
+        "Generate exactly 5 multiple-choice questions in JSON array format. "
+        "Each item must have keys: question, options, correct_answer, explanation. "
+        f"Topic: {topic}. Course: {course}. Student level: {level}. Language: {language}. "
+        "Options should include 4 choices and correct_answer must match one option exactly. "
+        "Return JSON only."
+    )
+
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            temperature=0.4,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            max_tokens=1400,
+        )
+        content = resp.choices[0].message.content or ""
+        data = json.loads(content)
+        raw_items = data.get("questions") if isinstance(data, dict) else data
+        if not isinstance(raw_items, list):
+            return _fallback_quiz(topic)
+        parsed: list[QuizQuestion] = []
+        for item in raw_items[:5]:
+            parsed.append(QuizQuestion.model_validate(item))
+        return parsed if len(parsed) == 5 else _fallback_quiz(topic)
+    except Exception:
+        return _fallback_quiz(topic)
+
+
+def build_prepare_graph(store: MemoryStore):
+    def load_profile_node(state: PrepareState) -> PrepareState:
+        profile_id = state["profile_id"]
+        profile = store.load_profile(profile_id)
+        if profile is None:
+            return {"error": f"Profile '{profile_id}' was not found."}
+        return {"profile": profile.model_dump()}
+
+    def build_study_plan_node(state: PrepareState) -> PrepareState:
+        profile = StudentProfile.model_validate(state["profile"])
+        session = StudySessionInput.model_validate(state["session_input"])
+        weak_topics = store.weak_topics_summary(state["profile_id"], top_n=3)
+        weak_text = ", ".join([f"{t} ({n})" for t, n in weak_topics]) if weak_topics else "no prior weak topics yet"
+        plan = (
+            f"Study plan for {profile.learner_name}: "
+            f"1) 10 min recap of {session.topic}; "
+            f"2) 15 min focused practice ({session.study_goal}); "
+            f"3) 10 min review of mistakes and notes. "
+            f"Historical weak areas: {weak_text}."
+        )
+        return {"study_plan": plan}
+
+    def generate_quiz_node(state: PrepareState) -> PrepareState:
+        profile = StudentProfile.model_validate(state["profile"])
+        session = StudySessionInput.model_validate(state["session_input"])
+        questions = _generate_quiz_with_openai(
+            topic=session.topic,
+            course=session.course,
+            level=profile.education_level,
+            language=profile.preferred_language,
+        )
+        return {"quiz_questions": [q.model_dump() for q in questions]}
+
+    graph = StateGraph(PrepareState)
+    graph.add_node("load_profile", load_profile_node)
+    graph.add_node("build_study_plan", build_study_plan_node)
+    graph.add_node("generate_quiz", generate_quiz_node)
+    graph.add_edge(START, "load_profile")
+    graph.add_edge("load_profile", "build_study_plan")
+    graph.add_edge("build_study_plan", "generate_quiz")
+    graph.add_edge("generate_quiz", END)
+    return graph.compile()
+
+
+def build_evaluation_graph(store: MemoryStore):
+    def load_profile_node(state: EvaluateState) -> EvaluateState:
+        profile = store.load_profile(state["profile_id"])
+        if profile is None:
+            return {"error": f"Profile '{state['profile_id']}' was not found."}
+        return {"profile": profile.model_dump()}
+
+    def evaluate_answers_node(state: EvaluateState) -> EvaluateState:
+        questions = [QuizQuestion.model_validate(item) for item in state.get("quiz_questions", [])]
+        answers = state.get("answers", [])
+        correct = 0
+        weak: list[str] = []
+        feedback: list[str] = []
+        for i, q in enumerate(questions):
+            answer = answers[i].strip() if i < len(answers) else ""
+            if answer == q.correct_answer:
+                correct += 1
+            else:
+                weak.append(q.question)
+                feedback.append(f"Q{i+1}: {q.explanation}")
+        total = len(questions) or 1
+        score_percent = round((correct / total) * 100, 1)
+        return {"score_percent": score_percent, "weak_concepts": weak, "feedback": feedback}
+
+    def update_memory_node(state: EvaluateState) -> EvaluateState:
+        session = StudySessionInput.model_validate(state["session_input"])
+        record = SessionRecord(
+            course=session.course,
+            topic=session.topic,
+            score_percent=float(state.get("score_percent", 0.0)),
+            weak_concepts=state.get("weak_concepts", []),
+        )
+        store.append_session_record(state["profile_id"], record)
+        return {}
+
+    def recommend_next_step_node(state: EvaluateState) -> EvaluateState:
+        score = float(state.get("score_percent", 0.0))
+        session = StudySessionInput.model_validate(state["session_input"])
+        if score < 60:
+            rec = (
+                f"Score {score}%. Focus on fundamentals in {session.topic} next session with easier questions."
+            )
+        elif score < 85:
+            rec = f"Score {score}%. Keep practicing {session.topic} and review the mistakes once more."
+        else:
+            rec = f"Score {score}%. Great progress. Move to the next advanced topic in {session.course}."
+        return {"recommendation": rec}
+
+    graph = StateGraph(EvaluateState)
+    graph.add_node("load_profile", load_profile_node)
+    graph.add_node("evaluate_answers", evaluate_answers_node)
+    graph.add_node("update_memory", update_memory_node)
+    graph.add_node("recommend_next_step", recommend_next_step_node)
+    graph.add_edge(START, "load_profile")
+    graph.add_edge("load_profile", "evaluate_answers")
+    graph.add_edge("evaluate_answers", "update_memory")
+    graph.add_edge("update_memory", "recommend_next_step")
+    graph.add_edge("recommend_next_step", END)
+    return graph.compile()
