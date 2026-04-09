@@ -117,6 +117,12 @@ DEFAULT_PROMPTS: dict[str, Any] = {
         "input_course_too_long": "Course name is too long (max {max} characters).",
         "input_topic_too_long": "Topic / study request is too long (max {max} characters).",
         "input_feedback_note_too_long": "Note is too long (max {max} characters).",
+        "reset_session_button": "Reset session",
+        "reset_session_help": (
+            "Clear study plan, material, quiz, and recommendations from this browser session. "
+            "Your saved profile on disk is not changed."
+        ),
+        "reset_session_toast": "Session outputs cleared.",
     },
 }
 

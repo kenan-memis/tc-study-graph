@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import json
+import re
 import time
 from collections import defaultdict
 from typing import Generator
@@ -121,6 +122,52 @@ def _rate_limit_allow(action_id: str, cooldown_sec: float) -> bool:
             return False
     st.session_state[key] = now
     return True
+
+
+# Cleared before starting a new generation (keeps prior session_input until replaced).
+_REGENERATE_CLEAR_KEYS = (
+    "current_study_plan",
+    "current_study_material",
+    "current_external_knowledge",
+    "current_quiz",
+    "latest_recommendation",
+    "usage_records",
+    "fb_signal",
+    "fb_section_open",
+    "fb_reasons",
+    "fb_note",
+)
+
+# Cleared on explicit reset or profile switch (in-flight work + session context).
+_RESET_EXTRA_KEYS = (
+    "current_session_input",
+    "applied_feedback_hint",
+    "current_material_cache_hit",
+    "current_quiz_cache_hit",
+    "just_streamed_study_plan",
+    "pending_generation",
+    "is_generating",
+)
+
+_QUIZ_ANSWER_WIDGET_KEY = re.compile(r"^quiz_\d+$")
+
+
+def _clear_before_new_generation() -> None:
+    for key in _REGENERATE_CLEAR_KEYS:
+        st.session_state.pop(key, None)
+
+
+def _reset_study_session_outputs(*, clear_rate_limits: bool = True) -> None:
+    """Remove generated study content and quiz widget state. Profiles and saved settings stay."""
+    _clear_before_new_generation()
+    for key in _RESET_EXTRA_KEYS:
+        st.session_state.pop(key, None)
+    for k in list(st.session_state.keys()):
+        if isinstance(k, str) and _QUIZ_ANSWER_WIDGET_KEY.match(k):
+            st.session_state.pop(k, None)
+    if clear_rate_limits:
+        for action in ("generate_plan_material", "start_quiz", "evaluate_quiz"):
+            st.session_state.pop(f"_rate_limit_{action}", None)
 
 
 def _append_usage_record(record: dict | None) -> None:
@@ -748,21 +795,44 @@ def main() -> None:
     previous_active = st.session_state.get("active_profile_id")
     if previous_active != active_profile_id:
         # Clear stale per-profile session states when user switches profile.
-        for key in [
-            "current_session_input",
-            "current_study_plan",
-            "current_study_material",
-            "current_external_knowledge",
-            "current_quiz",
-            "just_streamed_study_plan",
-            "latest_recommendation",
-            "usage_records",
-        ]:
-            st.session_state.pop(key, None)
+        _reset_study_session_outputs(clear_rate_limits=False)
         st.session_state["active_profile_id"] = active_profile_id
 
     st.divider()
-    st.subheader("Start Study Session")
+    if st.session_state.pop("_show_reset_session_toast", False):
+        st.success(render_prompt("ui.reset_session_toast"))
+    c_sess_title, c_sess_reset = st.columns([4, 1])
+    with c_sess_title:
+        st.subheader("Start Study Session")
+    with c_sess_reset:
+        # Same control as "Generate" (primary); red via scoped CSS (st.container key → .st-key-* class).
+        st.markdown(
+            """
+            <style>
+            .st-key-reset-session-danger button[kind="primary"] {
+                background-color: #dc3545 !important;
+                border-color: #bd2130 !important;
+                color: #ffffff !important;
+            }
+            .st-key-reset-session-danger button[kind="primary"]:hover {
+                background-color: #c82333 !important;
+                border-color: #a71d2a !important;
+                color: #ffffff !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        with st.container(key="reset-session-danger"):
+            if st.button(
+                render_prompt("ui.reset_session_button"),
+                key="reset_study_session",
+                help=render_prompt("ui.reset_session_help"),
+                type="primary",
+            ):
+                _reset_study_session_outputs()
+                st.session_state["_show_reset_session_toast"] = True
+                st.rerun()
 
     if "course_choice" not in st.session_state:
         st.session_state["course_choice"] = SELECT_PLACEHOLDER
@@ -871,19 +941,7 @@ def main() -> None:
             st.stop()
 
         # Clear old outputs first, then rerun and generate in a fresh render cycle.
-        for key in [
-            "current_study_plan",
-            "current_study_material",
-            "current_external_knowledge",
-            "current_quiz",
-            "latest_recommendation",
-            "usage_records",
-            "fb_signal",
-            "fb_section_open",
-            "fb_reasons",
-            "fb_note",
-        ]:
-            st.session_state.pop(key, None)
+        _clear_before_new_generation()
         st.session_state["pending_generation"] = {
             "course": course,
             "topic": topic_stripped,
