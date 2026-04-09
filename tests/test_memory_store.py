@@ -48,6 +48,41 @@ def test_append_and_load_session_history(tmp_path: Path) -> None:
     assert history[1].topic == "Geometry"
 
 
+def test_find_duplicate_profile_returns_id_on_exact_match(tmp_path: Path) -> None:
+    store = MemoryStore(base_dir=tmp_path / "memory")
+    profile_id = store.create_profile_id("Alice")
+    profile = StudentProfile(
+        learner_name="Alice",
+        education_level="high",
+        preferred_language="English",
+        preferred_difficulty="medium",
+        preferred_pace="balanced",
+    )
+    store.save_profile(profile_id, profile)
+    assert store.find_duplicate_profile(profile) == profile_id
+
+
+def test_find_duplicate_profile_none_when_fields_differ(tmp_path: Path) -> None:
+    store = MemoryStore(base_dir=tmp_path / "memory")
+    profile_id = store.create_profile_id("Bob")
+    saved = StudentProfile(
+        learner_name="Bob",
+        education_level="high",
+        preferred_language="English",
+        preferred_difficulty="medium",
+        preferred_pace="balanced",
+    )
+    store.save_profile(profile_id, saved)
+    candidate = StudentProfile(
+        learner_name="Bob",
+        education_level="primary",
+        preferred_language="English",
+        preferred_difficulty="medium",
+        preferred_pace="balanced",
+    )
+    assert store.find_duplicate_profile(candidate) is None
+
+
 def test_profiles_are_isolated(tmp_path: Path) -> None:
     store = MemoryStore(base_dir=tmp_path / "memory")
     p1 = store.create_profile_id("Alice")
