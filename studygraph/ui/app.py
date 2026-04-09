@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import json
-import re
 import time
 from collections import defaultdict
 from typing import Generator
@@ -14,6 +13,12 @@ import streamlit as st
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from studygraph.config import (
+    get_app_settings,
+    get_ui_constants,
+    read_button_styles_css,
+    read_footer_snippet_html,
+)
 from studygraph.graph import build_evaluation_graph, build_prepare_graph, build_quiz_graph
 from studygraph.limits import MAX_COURSE, MAX_FEEDBACK_NOTE, MAX_LEARNER_NAME, MAX_TOPIC
 from studygraph.memory import MemoryStore
@@ -33,31 +38,8 @@ from studygraph.utils.ui_errors import (
 
 load_dotenv()
 
-STANDARD_COURSES = [
-    "Math",
-    "Biology",
-    "Chemistry",
-    "Physics",
-    "History",
-    "Geography",
-    "English",
-    "Computer science",
-]
-SELECT_PLACEHOLDER = "Select..."
-# Per-session cooldowns (seconds) for LLM-heavy actions (Streamlit session_state).
-RATE_LIMIT_GENERATE_SECONDS = 8.0
-RATE_LIMIT_QUIZ_SECONDS = 6.0
-RATE_LIMIT_EVALUATE_SECONDS = 6.0
-
-FEEDBACK_REASON_OPTIONS = [
-    "too long",
-    "too short",
-    "too hard",
-    "too easy",
-    "not enough examples",
-    "too much theory",
-    "unclear structure",
-]
+UI = get_ui_constants()
+SETTINGS = get_app_settings()
 
 
 def _store() -> MemoryStore:
@@ -124,49 +106,21 @@ def _rate_limit_allow(action_id: str, cooldown_sec: float) -> bool:
     return True
 
 
-# Cleared before starting a new generation (keeps prior session_input until replaced).
-_REGENERATE_CLEAR_KEYS = (
-    "current_study_plan",
-    "current_study_material",
-    "current_external_knowledge",
-    "current_quiz",
-    "latest_recommendation",
-    "usage_records",
-    "fb_signal",
-    "fb_section_open",
-    "fb_reasons",
-    "fb_note",
-)
-
-# Cleared on explicit reset or profile switch (in-flight work + session context).
-_RESET_EXTRA_KEYS = (
-    "current_session_input",
-    "applied_feedback_hint",
-    "current_material_cache_hit",
-    "current_quiz_cache_hit",
-    "just_streamed_study_plan",
-    "pending_generation",
-    "is_generating",
-)
-
-_QUIZ_ANSWER_WIDGET_KEY = re.compile(r"^quiz_\d+$")
-
-
 def _clear_before_new_generation() -> None:
-    for key in _REGENERATE_CLEAR_KEYS:
+    for key in UI.regenerate_clear_keys:
         st.session_state.pop(key, None)
 
 
 def _reset_study_session_outputs(*, clear_rate_limits: bool = True) -> None:
     """Remove generated study content and quiz widget state. Profiles and saved settings stay."""
     _clear_before_new_generation()
-    for key in _RESET_EXTRA_KEYS:
+    for key in UI.reset_extra_keys:
         st.session_state.pop(key, None)
     for k in list(st.session_state.keys()):
-        if isinstance(k, str) and _QUIZ_ANSWER_WIDGET_KEY.match(k):
+        if isinstance(k, str) and UI.quiz_answer_key_pattern.match(k):
             st.session_state.pop(k, None)
     if clear_rate_limits:
-        for action in ("generate_plan_material", "start_quiz", "evaluate_quiz"):
+        for action in UI.rate_limit_state_actions:
             st.session_state.pop(f"_rate_limit_{action}", None)
 
 
@@ -193,7 +147,11 @@ def _append_estimated_stream_usage(
     prompt_text: str,
     completion_text: str,
 ) -> None:
-    model = "gemini-2.5-flash" if provider == "gemini" else "gpt-5.2"
+    model = (
+        SETTINGS.model_gemini_generate
+        if provider == "gemini"
+        else SETTINGS.model_openai_chat
+    )
     _append_usage_record(
         build_usage_record(
             provider=provider,
@@ -224,7 +182,7 @@ def _stream_text_from_openai(
         system_prompt = render_prompt("streaming.system_coach")
         stream = call_with_retry(
             lambda: client.chat.completions.create(
-                model="gpt-5.2",
+                model=SETTINGS.model_openai_chat,
                 messages=[
                     {
                         "role": "system",
@@ -261,10 +219,7 @@ def _stream_text_from_gemini(
     if not api_key:
         yield fallback_text
         return
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-2.5-flash:generateContent?key={api_key}"
-    )
+    url = SETTINGS.gemini_generate_url(api_key)
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": temperature, "topP": top_p},
@@ -382,33 +337,7 @@ def _build_recommendation_stream_prompt(
 def _render_footer() -> None:
     footer_line_1 = render_prompt("ui.fixed_footer_line_1")
     footer_line_2 = render_prompt("ui.fixed_footer_line_2")
-    footer_html = """
-        <style>
-          .sg-fixed-footer {
-            position: fixed;
-            left: 0;
-            bottom: 0;
-            width: 100%;
-            border-top: 1px solid #e9ecef;
-            color: #6c757d;
-            font-size: 0.9em;
-            text-align: center;
-            line-height: 1.4;
-            padding: 0.55rem 0.75rem;
-            background: rgba(255, 255, 255, 0.96);
-            z-index: 99999;
-            backdrop-filter: blur(3px);
-          }
-          .sg-footer-spacer {
-            height: 56px;
-          }
-        </style>
-        <div class="sg-footer-spacer"></div>
-        <div class="sg-fixed-footer">
-          <div>__FOOTER_LINE_1__</div>
-          <div>__FOOTER_LINE_2__</div>
-        </div>
-        """
+    footer_html = read_footer_snippet_html()
     footer_html = footer_html.replace("__FOOTER_LINE_1__", footer_line_1).replace(
         "__FOOTER_LINE_2__", footer_line_2
     )
@@ -419,68 +348,9 @@ def _render_footer() -> None:
 
 
 def _inject_button_styles() -> None:
-    st.markdown(
-        """
-        <style>
-          /* Main CTA: avoid warning-like red tone */
-          div[data-testid="stButton"] > button[kind="primary"] {
-            background-color: #4caf50 !important;
-            border-color: #4caf50 !important;
-            color: #ffffff !important;
-          }
-          div[data-testid="stButton"] > button[kind="primary"]:hover {
-            background-color: #43a047 !important;
-            border-color: #43a047 !important;
-          }
-
-          /* Sidebar primary buttons should be orange (e.g., update profile) */
-          section[data-testid="stSidebar"] div[data-testid="stButton"] > button[kind="primary"] {
-            background-color: #fb8c00 !important;
-            border-color: #fb8c00 !important;
-            color: #ffffff !important;
-          }
-          section[data-testid="stSidebar"] div[data-testid="stButton"] > button[kind="primary"]:hover {
-            background-color: #f57c00 !important;
-            border-color: #f57c00 !important;
-          }
-
-          /* Sidebar action buttons default to light blue */
-          section[data-testid="stSidebar"] div[data-testid="stButton"] > button {
-            background-color: #edf5ff !important;
-            border-color: #b6d6ff !important;
-            color: #24559a !important;
-          }
-          section[data-testid="stSidebar"] div[data-testid="stButton"] > button:hover {
-            background-color: #deeeff !important;
-            border-color: #9ec8ff !important;
-          }
-
-          /* Primary actions inside expanders (e.g. feedback submit) -> orange */
-          div[data-testid="stExpander"] div[data-testid="stButton"] > button[kind="primary"] {
-            background-color: #fb8c00 !important;
-            border-color: #fb8c00 !important;
-            color: #ffffff !important;
-          }
-          div[data-testid="stExpander"] div[data-testid="stButton"] > button[kind="primary"]:hover {
-            background-color: #f57c00 !important;
-            border-color: #f57c00 !important;
-          }
-
-          /* Download button visual separation -> light red */
-          div[data-testid="stDownloadButton"] > button {
-            background-color: #ffebee !important;
-            border-color: #ef9a9a !important;
-            color: #b71c1c !important;
-          }
-          div[data-testid="stDownloadButton"] > button:hover {
-            background-color: #ffcdd2 !important;
-            border-color: #e57373 !important;
-          }
-
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    css = read_button_styles_css()
+    if css.strip():
+        st.markdown(f"<style>\n{css}\n</style>", unsafe_allow_html=True)
 
 
 def _group_history_by_course(
@@ -552,33 +422,24 @@ def _sync_profile_form_state(
     if st.session_state.get("profile_form_loaded_for") == marker:
         return
 
-    education_value_to_label = {
-        "primary": "Primary",
-        "middle": "Middle",
-        "high": "High",
-        "university_exam_prep": "University exam prep",
-    }
-    difficulty_value_to_label = {"easy": "Easy", "medium": "Medium", "hard": "Hard"}
-    pace_value_to_label = {"slow": "Slow", "balanced": "Balanced", "fast": "Fast"}
-
     if form_mode == "Edit selected profile" and profile is not None:
         st.session_state["pf_learner_name"] = profile.learner_name
-        st.session_state["pf_education_level"] = education_value_to_label.get(
+        st.session_state["pf_education_level"] = UI.education_value_to_label.get(
             profile.education_level, "High"
         )
         st.session_state["pf_preferred_language"] = profile.preferred_language
-        st.session_state["pf_preferred_difficulty"] = difficulty_value_to_label.get(
+        st.session_state["pf_preferred_difficulty"] = UI.difficulty_value_to_label.get(
             profile.preferred_difficulty, "Medium"
         )
-        st.session_state["pf_preferred_pace"] = pace_value_to_label.get(
+        st.session_state["pf_preferred_pace"] = UI.pace_value_to_label.get(
             profile.preferred_pace, "Balanced"
         )
     else:
         st.session_state["pf_learner_name"] = ""
-        st.session_state["pf_education_level"] = SELECT_PLACEHOLDER
-        st.session_state["pf_preferred_language"] = SELECT_PLACEHOLDER
-        st.session_state["pf_preferred_difficulty"] = SELECT_PLACEHOLDER
-        st.session_state["pf_preferred_pace"] = SELECT_PLACEHOLDER
+        st.session_state["pf_education_level"] = UI.select_placeholder
+        st.session_state["pf_preferred_language"] = UI.select_placeholder
+        st.session_state["pf_preferred_difficulty"] = UI.select_placeholder
+        st.session_state["pf_preferred_pace"] = UI.select_placeholder
     st.session_state["profile_form_loaded_for"] = marker
 
 
@@ -592,8 +453,10 @@ def main() -> None:
 
     st.sidebar.header(render_prompt("ui.sidebar_profile_manager"))
     profile_ids = store.list_profile_ids()
-    selected = st.sidebar.selectbox("Select profile", options=[SELECT_PLACEHOLDER] + profile_ids)
-    active_profile_id = selected if selected != SELECT_PLACEHOLDER else None
+    selected = st.sidebar.selectbox(
+        "Select profile", options=[UI.select_placeholder] + profile_ids
+    )
+    active_profile_id = selected if selected != UI.select_placeholder else None
     selected_profile = store.load_profile(active_profile_id) if active_profile_id else None
     if "profile_form_mode" not in st.session_state:
         st.session_state["profile_form_mode"] = (
@@ -612,32 +475,27 @@ def main() -> None:
             key="pf_learner_name",
             max_chars=MAX_LEARNER_NAME,
         )
-        education_options = {
-            "Primary": "primary",
-            "Middle": "middle",
-            "High": "high",
-            "University exam prep": "university_exam_prep",
-        }
+        education_options = UI.education_options
         education_level = st.selectbox(
             "Education level",
-            options=[SELECT_PLACEHOLDER] + list(education_options.keys()),
+            options=[UI.select_placeholder] + list(education_options.keys()),
             key="pf_education_level",
         )
         preferred_language = st.selectbox(
             "Preferred language",
-            options=[SELECT_PLACEHOLDER, "English"],
+            options=[UI.select_placeholder] + list(UI.preferred_language_extra_labels),
             key="pf_preferred_language",
         )
-        difficulty_options = {"Easy": "easy", "Medium": "medium", "Hard": "hard"}
-        pace_options = {"Slow": "slow", "Balanced": "balanced", "Fast": "fast"}
+        difficulty_options = UI.difficulty_options
+        pace_options = UI.pace_options
         preferred_difficulty = st.selectbox(
             "Preferred difficulty",
-            options=[SELECT_PLACEHOLDER] + list(difficulty_options.keys()),
+            options=[UI.select_placeholder] + list(difficulty_options.keys()),
             key="pf_preferred_difficulty",
         )
         preferred_pace = st.selectbox(
             "Preferred pace",
-            options=[SELECT_PLACEHOLDER] + list(pace_options.keys()),
+            options=[UI.select_placeholder] + list(pace_options.keys()),
             key="pf_preferred_pace",
         )
 
@@ -646,16 +504,16 @@ def main() -> None:
                 if not learner_name.strip():
                     st.error("Learner name is required.")
                     st.stop()
-                if education_level == SELECT_PLACEHOLDER:
+                if education_level == UI.select_placeholder:
                     st.error("Please select an education level.")
                     st.stop()
-                if preferred_language == SELECT_PLACEHOLDER:
+                if preferred_language == UI.select_placeholder:
                     st.error("Please select a preferred language.")
                     st.stop()
-                if preferred_difficulty == SELECT_PLACEHOLDER:
+                if preferred_difficulty == UI.select_placeholder:
                     st.error("Please select a preferred difficulty.")
                     st.stop()
-                if preferred_pace == SELECT_PLACEHOLDER:
+                if preferred_pace == UI.select_placeholder:
                     st.error("Please select a preferred pace.")
                     st.stop()
                 profile = StudentProfile(
@@ -688,16 +546,16 @@ def main() -> None:
                 if not learner_name.strip():
                     st.error("Learner name is required.")
                     st.stop()
-                if education_level == SELECT_PLACEHOLDER:
+                if education_level == UI.select_placeholder:
                     st.error("Please select an education level.")
                     st.stop()
-                if preferred_language == SELECT_PLACEHOLDER:
+                if preferred_language == UI.select_placeholder:
                     st.error("Please select a preferred language.")
                     st.stop()
-                if preferred_difficulty == SELECT_PLACEHOLDER:
+                if preferred_difficulty == UI.select_placeholder:
                     st.error("Please select a preferred difficulty.")
                     st.stop()
-                if preferred_pace == SELECT_PLACEHOLDER:
+                if preferred_pace == UI.select_placeholder:
                     st.error("Please select a preferred pace.")
                     st.stop()
                 profile = StudentProfile(
@@ -805,24 +663,7 @@ def main() -> None:
     with c_sess_title:
         st.subheader("Start Study Session")
     with c_sess_reset:
-        # Same control as "Generate" (primary); red via scoped CSS (st.container key → .st-key-* class).
-        st.markdown(
-            """
-            <style>
-            .st-key-reset-session-danger button[kind="primary"] {
-                background-color: #dc3545 !important;
-                border-color: #bd2130 !important;
-                color: #ffffff !important;
-            }
-            .st-key-reset-session-danger button[kind="primary"]:hover {
-                background-color: #c82333 !important;
-                border-color: #a71d2a !important;
-                color: #ffffff !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
+        # Primary button; red styling is in ``config/button_styles.css`` (``.st-key-reset-session-danger``).
         with st.container(key="reset-session-danger"):
             if st.button(
                 render_prompt("ui.reset_session_button"),
@@ -835,15 +676,15 @@ def main() -> None:
                 st.rerun()
 
     if "course_choice" not in st.session_state:
-        st.session_state["course_choice"] = SELECT_PLACEHOLDER
+        st.session_state["course_choice"] = UI.select_placeholder
     if "course_other" not in st.session_state:
         st.session_state["course_other"] = ""
     if "topic_input" not in st.session_state:
         st.session_state["topic_input"] = ""
     if "study_goal_choice" not in st.session_state:
-        st.session_state["study_goal_choice"] = SELECT_PLACEHOLDER
+        st.session_state["study_goal_choice"] = UI.select_placeholder
     if "response_style_choice" not in st.session_state:
-        st.session_state["response_style_choice"] = SELECT_PLACEHOLDER
+        st.session_state["response_style_choice"] = UI.select_placeholder
 
     with st.expander("Interactive help: build a good study request", expanded=False):
         st.markdown(
@@ -852,27 +693,21 @@ def main() -> None:
             "- Use **Quick revision** for short recap, **Exam preparation** for tougher practice.\n"
             "- You can click an example below to auto-fill session fields."
         )
-        presets = [
-            ("Math quick review", "Math", "", "Division", "Quick revision", "Friendly"),
-            ("Biology exam prep", "Biology", "", "Cell structure", "Exam preparation", "Formal"),
-            ("History deep study", "History", "", "French Revolution causes", "Deep understanding", "Concise"),
-            ("Custom course example", "Other…", "Economics", "Supply and demand", "Practice only", "Friendly"),
-        ]
-        for label, c_choice, c_other, t, goal, style in presets:
-            if st.button(label, key=f"preset_{label}"):
-                st.session_state["course_choice"] = c_choice
-                st.session_state["course_other"] = c_other
-                st.session_state["topic_input"] = t
-                st.session_state["study_goal_choice"] = goal
-                st.session_state["response_style_choice"] = style
+        for preset in UI.session_presets:
+            if st.button(preset.label, key=f"preset_{preset.label}"):
+                st.session_state["course_choice"] = preset.course
+                st.session_state["course_other"] = preset.course_other
+                st.session_state["topic_input"] = preset.topic
+                st.session_state["study_goal_choice"] = preset.study_goal
+                st.session_state["response_style_choice"] = preset.response_style
                 st.rerun()
 
     course_choice = st.selectbox(
         "Course",
-        options=[SELECT_PLACEHOLDER] + STANDARD_COURSES + ["Other…"],
+        options=[UI.select_placeholder] + list(UI.standard_courses) + [UI.other_course_label],
         key="course_choice",
     )
-    if course_choice == "Other…":
+    if course_choice == UI.other_course_label:
         course_other = st.text_input(
             "Course name",
             placeholder="e.g. Music, Economics",
@@ -888,41 +723,30 @@ def main() -> None:
         key="topic_input",
         height=120,
         max_chars=MAX_TOPIC,
-        placeholder=(
-            "Examples: 'Division' OR "
-            "'I struggle with long division and remainders, especially in word problems. "
-            "I have a quiz tomorrow and want step-by-step practice.'"
-        ),
+        placeholder=UI.topic_area_placeholder,
     )
     study_goal = st.selectbox(
         "Study goal",
-        options=[
-            SELECT_PLACEHOLDER,
-            "Quick revision",
-            "Deep understanding",
-            "Exam preparation",
-            "Practice only",
-            "Mistake correction",
-        ],
+        options=[UI.select_placeholder] + list(UI.study_goal_labels),
         key="study_goal_choice",
     )
     response_style = st.selectbox(
         "Response style",
-        options=[SELECT_PLACEHOLDER, "Friendly", "Formal", "Concise"],
+        options=[UI.select_placeholder] + list(UI.response_style_labels),
         key="response_style_choice",
     )
 
     if st.button("Generate plan and study material", type="primary"):
-        if course_choice == SELECT_PLACEHOLDER:
+        if course_choice == UI.select_placeholder:
             st.error("Please select a course.")
             st.stop()
-        if study_goal == SELECT_PLACEHOLDER:
+        if study_goal == UI.select_placeholder:
             st.error("Please select a study goal.")
             st.stop()
-        if response_style == SELECT_PLACEHOLDER:
+        if response_style == UI.select_placeholder:
             st.error("Please select a response style.")
             st.stop()
-        if course_choice == "Other…" and not course:
+        if course_choice == UI.other_course_label and not course:
             st.error("Please enter a course name when you choose “Other…”")
             st.stop()
 
@@ -937,7 +761,10 @@ def main() -> None:
             st.error(render_prompt("ui.input_topic_too_long", max=MAX_TOPIC))
             st.stop()
 
-        if not _rate_limit_allow("generate_plan_material", RATE_LIMIT_GENERATE_SECONDS):
+        if not _rate_limit_allow(
+            "generate_plan_material",
+            SETTINGS.rate_limit_seconds("generate_plan_material"),
+        ):
             st.stop()
 
         # Clear old outputs first, then rerun and generate in a fresh render cycle.
@@ -1105,7 +932,7 @@ def main() -> None:
             st.caption(f"Selected feedback: `{fb_signal or 'none'}`")
             fb_reasons = st.multiselect(
                 "What should we improve next time?",
-                options=FEEDBACK_REASON_OPTIONS,
+                options=list(UI.feedback_reason_options),
                 default=[],
                 key="fb_reasons",
             )
@@ -1153,7 +980,7 @@ def main() -> None:
         and not st.session_state.get("current_quiz")
     ):
         if st.button("Start Quiz"):
-            if not _rate_limit_allow("start_quiz", RATE_LIMIT_QUIZ_SECONDS):
+            if not _rate_limit_allow("start_quiz", SETTINGS.rate_limit_seconds("start_quiz")):
                 st.stop()
             try:
                 quiz_graph = build_quiz_graph(store)
@@ -1199,7 +1026,9 @@ def main() -> None:
             )
 
         if st.button("Evaluate answers"):
-            if not _rate_limit_allow("evaluate_quiz", RATE_LIMIT_EVALUATE_SECONDS):
+            if not _rate_limit_allow(
+                "evaluate_quiz", SETTINGS.rate_limit_seconds("evaluate_quiz")
+            ):
                 st.stop()
             try:
                 eval_graph = build_evaluation_graph(store)

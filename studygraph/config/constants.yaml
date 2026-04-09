@@ -1,0 +1,131 @@
+# UI lists, labels, and session-state key names. Safe to edit without touching Python.
+
+ui:
+  select_placeholder: "Select..."
+  # Must match course select + presets when using a non-standard course name.
+  other_course_label: &other_course "Other…"
+
+  topic_area_placeholder: |-
+    Examples: 'Division' OR
+    'I struggle with long division and remainders, especially in word problems.
+    I have a quiz tomorrow and want step-by-step practice.'
+
+standard_courses:
+  - Math
+  - Biology
+  - Chemistry
+  - Physics
+  - History
+  - Geography
+  - English
+  - Computer science
+
+study_goal_labels:
+  - Quick revision
+  - Deep understanding
+  - Exam preparation
+  - Practice only
+  - Mistake correction
+
+response_style_labels:
+  - Friendly
+  - Formal
+  - Concise
+
+feedback_reason_options:
+  - too long
+  - too short
+  - too hard
+  - too easy
+  - not enough examples
+  - too much theory
+  - unclear structure
+
+# Example rows for the interactive help expander (label = button text).
+session_presets:
+  - label: Math quick review
+    course: Math
+    course_other: ""
+    topic: Division
+    study_goal: Quick revision
+    response_style: Friendly
+  - label: Biology exam prep
+    course: Biology
+    course_other: ""
+    topic: Cell structure
+    study_goal: Exam preparation
+    response_style: Formal
+  - label: History deep study
+    course: History
+    course_other: ""
+    topic: French Revolution causes
+    study_goal: Deep understanding
+    response_style: Concise
+  - label: Custom course example
+    course: *other_course
+    course_other: Economics
+    topic: Supply and demand
+    study_goal: Practice only
+    response_style: Friendly
+
+# Profile sidebar: maps between stored model values and selectbox labels.
+profile_form:
+  education_value_to_label:
+    primary: Primary
+    middle: Middle
+    high: High
+    university_exam_prep: University exam prep
+  education_options:
+    Primary: primary
+    Middle: middle
+    High: high
+    University exam prep: university_exam_prep
+  difficulty_value_to_label:
+    easy: Easy
+    medium: Medium
+    hard: Hard
+  difficulty_options:
+    Easy: easy
+    Medium: medium
+    Hard: hard
+  pace_value_to_label:
+    slow: Slow
+    balanced: Balanced
+    fast: Fast
+  pace_options:
+    Slow: slow
+    Balanced: balanced
+    Fast: fast
+  preferred_language_extra_labels:
+    - English
+
+# Streamlit session_state keys cleared before a new generation (see app).
+session_state:
+  regenerate_clear_keys:
+    - current_study_plan
+    - current_study_material
+    - current_external_knowledge
+    - current_quiz
+    - latest_recommendation
+    - usage_records
+    - fb_signal
+    - fb_section_open
+    - fb_reasons
+    - fb_note
+  reset_extra_keys:
+    - current_session_input
+    - applied_feedback_hint
+    - current_material_cache_hit
+    - current_quiz_cache_hit
+    - just_streamed_study_plan
+    - pending_generation
+    - is_generating
+
+# Regex for quiz answer widget keys (quiz_0, quiz_1, …).
+quiz_answer_key_pattern: "^quiz_\\d+$"
+
+# Actions that store monotonic timestamps under _rate_limit_{action}.
+rate_limit_state_actions:
+  - generate_plan_material
+  - start_quiz
+  - evaluate_quiz

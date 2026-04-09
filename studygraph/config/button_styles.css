@@ -1,0 +1,68 @@
+/* Streamlit widget overrides (injected once in main()). */
+
+/* Main CTA: avoid warning-like red tone */
+div[data-testid="stButton"] > button[kind="primary"] {
+  background-color: #4caf50 !important;
+  border-color: #4caf50 !important;
+  color: #ffffff !important;
+}
+div[data-testid="stButton"] > button[kind="primary"]:hover {
+  background-color: #43a047 !important;
+  border-color: #43a047 !important;
+}
+
+/* Sidebar primary buttons should be orange (e.g., update profile) */
+section[data-testid="stSidebar"] div[data-testid="stButton"] > button[kind="primary"] {
+  background-color: #fb8c00 !important;
+  border-color: #fb8c00 !important;
+  color: #ffffff !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stButton"] > button[kind="primary"]:hover {
+  background-color: #f57c00 !important;
+  border-color: #f57c00 !important;
+}
+
+/* Sidebar action buttons default to light blue */
+section[data-testid="stSidebar"] div[data-testid="stButton"] > button {
+  background-color: #edf5ff !important;
+  border-color: #b6d6ff !important;
+  color: #24559a !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stButton"] > button:hover {
+  background-color: #deeeff !important;
+  border-color: #9ec8ff !important;
+}
+
+/* Primary actions inside expanders (e.g. feedback submit) -> orange */
+div[data-testid="stExpander"] div[data-testid="stButton"] > button[kind="primary"] {
+  background-color: #fb8c00 !important;
+  border-color: #fb8c00 !important;
+  color: #ffffff !important;
+}
+div[data-testid="stExpander"] div[data-testid="stButton"] > button[kind="primary"]:hover {
+  background-color: #f57c00 !important;
+  border-color: #f57c00 !important;
+}
+
+/* Download button visual separation -> light red */
+div[data-testid="stDownloadButton"] > button {
+  background-color: #ffebee !important;
+  border-color: #ef9a9a !important;
+  color: #b71c1c !important;
+}
+div[data-testid="stDownloadButton"] > button:hover {
+  background-color: #ffcdd2 !important;
+  border-color: #e57373 !important;
+}
+
+/* Reset session: primary control, danger colors (scoped via st.container key) */
+.st-key-reset-session-danger button[kind="primary"] {
+  background-color: #dc3545 !important;
+  border-color: #bd2130 !important;
+  color: #ffffff !important;
+}
+.st-key-reset-session-danger button[kind="primary"]:hover {
+  background-color: #c82333 !important;
+  border-color: #a71d2a !important;
+  color: #ffffff !important;
+}

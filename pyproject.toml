@@ -26,3 +26,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["studygraph"]
 
+# Non-Python package data used at runtime (YAML + injected CSS/HTML).
+[tool.hatch.build.targets.wheel.force-include]
+"studygraph/config/constants.yaml" = "studygraph/config/constants.yaml"
+"studygraph/config/settings.yaml" = "studygraph/config/settings.yaml"
+"studygraph/config/button_styles.css" = "studygraph/config/button_styles.css"
+"studygraph/config/footer_snippet.html" = "studygraph/config/footer_snippet.html"
+

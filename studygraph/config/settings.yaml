@@ -1,0 +1,16 @@
+# Tunable app behavior (deploy / ops). Keep stable keys — code references them by name.
+
+rate_limits_seconds:
+  generate_plan_material: 8.0
+  start_quiz: 6.0
+  evaluate_quiz: 6.0
+
+# Model IDs used for streaming chat and usage estimates (must match provider APIs).
+models:
+  openai_chat: "gpt-5.2"
+  gemini_generate: "gemini-2.5-flash"
+
+# REST template for Gemini generateContent ({model}, {api_key} interpolated in code).
+gemini:
+  generate_content_url_template: >-
+    https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}
