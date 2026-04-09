@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from urllib import error, request
+from urllib import request
 from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -11,6 +11,7 @@ from openai import OpenAI
 from studygraph.memory import MemoryStore
 from studygraph.models import QuizQuestion, SessionRecord, StudySessionInput, StudentProfile
 from studygraph.prompts import render_prompt
+from studygraph.utils import call_with_retry
 
 
 class PrepareState(TypedDict, total=False):
@@ -102,13 +103,15 @@ def _generate_quiz_with_openai(
     )
 
     try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            temperature=temperature,
-            top_p=top_p,
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            max_tokens=1400,
+        resp = call_with_retry(
+            lambda: client.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=temperature,
+                top_p=top_p,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                max_tokens=1400,
+            )
         )
         content = resp.choices[0].message.content or ""
         data = json.loads(content)
@@ -168,14 +171,17 @@ def _generate_quiz_with_gemini(
         },
     }
     try:
-        req = request.Request(
-            url=url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with request.urlopen(req, timeout=10) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
+        def _request_body() -> dict:
+            req = request.Request(
+                url=url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+
+        body = call_with_retry(_request_body)
         parts = body["candidates"][0]["content"]["parts"]
         text = "".join([p.get("text", "") for p in parts if isinstance(p, dict)])
         data = json.loads(_extract_json_block(text))
@@ -229,12 +235,14 @@ def _build_material_with_openai_styled(
         style_hint=style_hint,
     )
     try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            temperature=temperature,
-            top_p=top_p,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=420,
+        resp = call_with_retry(
+            lambda: client.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=temperature,
+                top_p=top_p,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=420,
+            )
         )
         content = (resp.choices[0].message.content or "").strip()
         return content or render_prompt(
@@ -284,14 +292,17 @@ def _build_material_with_gemini_styled(
         },
     }
     try:
-        req = request.Request(
-            url=url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with request.urlopen(req, timeout=10) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
+        def _request_body() -> dict:
+            req = request.Request(
+                url=url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+
+        body = call_with_retry(_request_body)
         parts = body["candidates"][0]["content"]["parts"]
         content = "".join([p.get("text", "") for p in parts if isinstance(p, dict)]).strip()
         return content or render_prompt(

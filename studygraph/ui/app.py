@@ -16,6 +16,7 @@ from studygraph.graph import build_evaluation_graph, build_prepare_graph, build_
 from studygraph.memory import MemoryStore
 from studygraph.models import StudySessionInput, StudentProfile
 from studygraph.prompts import render_prompt
+from studygraph.utils import call_with_retry
 
 
 load_dotenv()
@@ -101,18 +102,20 @@ def _stream_text_from_openai(
     try:
         client = OpenAI(api_key=api_key, timeout=20.0)
         system_prompt = render_prompt("streaming.system_coach")
-        stream = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt,
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=temperature,
-            top_p=top_p,
-            stream=True,
+        stream = call_with_retry(
+            lambda: client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_prompt,
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=temperature,
+                top_p=top_p,
+                stream=True,
+            )
         )
         emitted = False
         for chunk in stream:
@@ -146,14 +149,17 @@ def _stream_text_from_gemini(
         "generationConfig": {"temperature": temperature, "topP": top_p},
     }
     try:
-        req = request.Request(
-            url=url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with request.urlopen(req, timeout=20) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
+        def _request_body() -> dict:
+            req = request.Request(
+                url=url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with request.urlopen(req, timeout=20) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+
+        body = call_with_retry(_request_body)
         parts = body["candidates"][0]["content"]["parts"]
         text = "".join([p.get("text", "") for p in parts if isinstance(p, dict)]).strip()
         yield text or fallback_text

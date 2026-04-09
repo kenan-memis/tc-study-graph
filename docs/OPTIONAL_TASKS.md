@@ -80,7 +80,22 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
 
 ## Medium
 
-Not started.
+### Medium #2 — Add retry logic for agents
+- **Status:** ✅ Implemented
+- **What was added:**
+  - Shared retry utility with exponential backoff + jitter (`max_attempts=3`)
+  - Retries are applied for model/provider request calls in:
+    - streamed study-plan generation
+    - streamed recommendation generation
+    - quiz generation
+    - study material generation
+  - Existing fallback behavior is preserved if retries still fail
+- **Files:**
+  - `studygraph/utils/retry.py`
+  - `studygraph/utils/__init__.py`
+  - `studygraph/ui/app.py`
+  - `studygraph/graph/workflow.py`
+  - `tests/test_retry.py`
 
 ---
 
