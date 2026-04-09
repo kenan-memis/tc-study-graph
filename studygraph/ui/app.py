@@ -300,18 +300,52 @@ def main() -> None:
 
     st.divider()
     st.subheader("Start Study Session")
+
+    if "course_choice" not in st.session_state:
+        st.session_state["course_choice"] = "Math"
+    if "course_other" not in st.session_state:
+        st.session_state["course_other"] = ""
+    if "topic_input" not in st.session_state:
+        st.session_state["topic_input"] = "Algebra basics"
+    if "study_goal_choice" not in st.session_state:
+        st.session_state["study_goal_choice"] = "Quick revision"
+
+    with st.expander("Interactive help: build a good study request", expanded=False):
+        st.markdown(
+            "- Pick a course first, then a narrow topic (e.g., `Division with remainders`).\n"
+            "- Use **Quick revision** for short recap, **Exam preparation** for tougher practice.\n"
+            "- You can click an example below to auto-fill session fields."
+        )
+        presets = [
+            ("Math quick review", "Math", "", "Division", "Quick revision"),
+            ("Biology exam prep", "Biology", "", "Cell structure", "Exam preparation"),
+            ("History deep study", "History", "", "French Revolution causes", "Deep understanding"),
+            ("Custom course example", "Other…", "Economics", "Supply and demand", "Practice only"),
+        ]
+        for label, c_choice, c_other, t, goal in presets:
+            if st.button(label, key=f"preset_{label}"):
+                st.session_state["course_choice"] = c_choice
+                st.session_state["course_other"] = c_other
+                st.session_state["topic_input"] = t
+                st.session_state["study_goal_choice"] = goal
+                st.rerun()
+
     course_choice = st.selectbox(
         "Course",
         options=STANDARD_COURSES + ["Other…"],
-        index=0,
+        key="course_choice",
     )
-    course_other = ""
     if course_choice == "Other…":
-        course_other = st.text_input("Course name", placeholder="e.g. Music, Economics")
+        course_other = st.text_input(
+            "Course name",
+            placeholder="e.g. Music, Economics",
+            key="course_other",
+        )
         course = (course_other or "").strip()
     else:
+        course_other = st.session_state.get("course_other", "")
         course = course_choice
-    topic = st.text_input("Topic", value="Algebra basics")
+    topic = st.text_input("Topic", key="topic_input")
     study_goal = st.selectbox(
         "Study goal",
         options=[
@@ -321,7 +355,7 @@ def main() -> None:
             "Practice only",
             "Mistake correction",
         ],
-        index=0,
+        key="study_goal_choice",
     )
 
     if st.button("Generate plan and study material", type="primary"):
