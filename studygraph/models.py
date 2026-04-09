@@ -26,7 +26,7 @@ class StudentProfile(BaseModel):
 
 class StudySessionInput(BaseModel):
     course: str = Field(min_length=1, max_length=80)
-    topic: str = Field(min_length=1, max_length=120)
+    topic: str = Field(min_length=1, max_length=800)
     study_goal: str = Field(default="quick revision", min_length=1, max_length=200)
 
     @field_validator("course", "topic", "study_goal")
@@ -37,7 +37,7 @@ class StudySessionInput(BaseModel):
 
 class SessionRecord(BaseModel):
     course: str = Field(min_length=1, max_length=80)
-    topic: str = Field(min_length=1, max_length=120)
+    topic: str = Field(min_length=1, max_length=800)
     score_percent: float = Field(ge=0.0, le=100.0)
     weak_concepts: list[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

@@ -28,6 +28,7 @@ STANDARD_COURSES = [
     "English",
     "Computer science",
 ]
+SELECT_PLACEHOLDER = "Select..."
 
 
 def _store() -> MemoryStore:
@@ -302,17 +303,18 @@ def main() -> None:
     st.subheader("Start Study Session")
 
     if "course_choice" not in st.session_state:
-        st.session_state["course_choice"] = "Math"
+        st.session_state["course_choice"] = SELECT_PLACEHOLDER
     if "course_other" not in st.session_state:
         st.session_state["course_other"] = ""
     if "topic_input" not in st.session_state:
-        st.session_state["topic_input"] = "Algebra basics"
+        st.session_state["topic_input"] = ""
     if "study_goal_choice" not in st.session_state:
-        st.session_state["study_goal_choice"] = "Quick revision"
+        st.session_state["study_goal_choice"] = SELECT_PLACEHOLDER
 
     with st.expander("Interactive help: build a good study request", expanded=False):
         st.markdown(
-            "- Pick a course first, then a narrow topic (e.g., `Division with remainders`).\n"
+            "- Pick a course first, then enter your **topic/study request**.\n"
+            "- This field can be short (`Division`) or detailed (a full paragraph with weak points).\n"
             "- Use **Quick revision** for short recap, **Exam preparation** for tougher practice.\n"
             "- You can click an example below to auto-fill session fields."
         )
@@ -332,7 +334,7 @@ def main() -> None:
 
     course_choice = st.selectbox(
         "Course",
-        options=STANDARD_COURSES + ["Other…"],
+        options=[SELECT_PLACEHOLDER] + STANDARD_COURSES + ["Other…"],
         key="course_choice",
     )
     if course_choice == "Other…":
@@ -345,10 +347,20 @@ def main() -> None:
     else:
         course_other = st.session_state.get("course_other", "")
         course = course_choice
-    topic = st.text_input("Topic", key="topic_input")
+    topic = st.text_area(
+        "Topic / study request",
+        key="topic_input",
+        height=120,
+        placeholder=(
+            "Examples: 'Division' OR "
+            "'I struggle with long division and remainders, especially in word problems. "
+            "I have a quiz tomorrow and want step-by-step practice.'"
+        ),
+    )
     study_goal = st.selectbox(
         "Study goal",
         options=[
+            SELECT_PLACEHOLDER,
             "Quick revision",
             "Deep understanding",
             "Exam preparation",
@@ -360,6 +372,12 @@ def main() -> None:
 
     if st.button("Generate plan and study material", type="primary"):
         try:
+            if course_choice == SELECT_PLACEHOLDER:
+                st.error("Please select a course.")
+                st.stop()
+            if study_goal == SELECT_PLACEHOLDER:
+                st.error("Please select a study goal.")
+                st.stop()
             if course_choice == "Other…" and not course:
                 st.error("Please enter a course name when you choose “Other…”")
                 st.stop()
