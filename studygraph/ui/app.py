@@ -654,6 +654,7 @@ def main() -> None:
             "current_session_input",
             "current_study_plan",
             "current_study_material",
+            "current_external_knowledge",
             "current_quiz",
             "just_streamed_study_plan",
             "latest_recommendation",
@@ -742,24 +743,52 @@ def main() -> None:
     )
 
     if st.button("Generate plan and study material", type="primary"):
+        if course_choice == SELECT_PLACEHOLDER:
+            st.error("Please select a course.")
+            st.stop()
+        if study_goal == SELECT_PLACEHOLDER:
+            st.error("Please select a study goal.")
+            st.stop()
+        if response_style == SELECT_PLACEHOLDER:
+            st.error("Please select a response style.")
+            st.stop()
+        if course_choice == "Other…" and not course:
+            st.error("Please enter a course name when you choose “Other…”")
+            st.stop()
+
+        # Clear old outputs first, then rerun and generate in a fresh render cycle.
+        for key in [
+            "current_study_plan",
+            "current_study_material",
+            "current_external_knowledge",
+            "current_quiz",
+            "latest_recommendation",
+            "usage_records",
+        ]:
+            st.session_state.pop(key, None)
+        st.session_state["pending_generation"] = {
+            "course": course,
+            "topic": topic,
+            "study_goal": study_goal,
+            "response_style": response_style,
+        }
+        st.session_state["is_generating"] = True
+        st.rerun()
+
+    pending_generation = st.session_state.get("pending_generation")
+    if isinstance(pending_generation, dict):
+        st.session_state.pop("pending_generation", None)
         try:
-            if course_choice == SELECT_PLACEHOLDER:
-                st.error("Please select a course.")
-                st.stop()
-            if study_goal == SELECT_PLACEHOLDER:
-                st.error("Please select a study goal.")
-                st.stop()
-            if response_style == SELECT_PLACEHOLDER:
-                st.error("Please select a response style.")
-                st.stop()
-            if course_choice == "Other…" and not course:
-                st.error("Please enter a course name when you choose “Other…”")
-                st.stop()
+            st.markdown("### Study plan")
+            plan_slot = st.empty()
+            plan_slot.info("Generating a fresh study plan...")
+            material_slot = st.empty()
+
             session_input = StudySessionInput(
-                course=course,
-                topic=topic,
-                study_goal=study_goal,
-                response_style=response_style,
+                course=str(pending_generation.get("course", "")),
+                topic=str(pending_generation.get("topic", "")),
+                study_goal=str(pending_generation.get("study_goal", "")),
+                response_style=str(pending_generation.get("response_style", "")),
                 llm_provider=str(saved_settings["llm_provider"]),
                 temperature=float(saved_settings["temperature"]),
                 top_p=float(saved_settings["top_p"]),
@@ -781,8 +810,7 @@ def main() -> None:
                     active_profile_id, session_input.course, top_n=3
                 )
                 stream_prompt = _build_study_plan_stream_prompt(profile, session_input, weak_summary)
-                st.markdown("### Study plan")
-                streamed_plan = st.write_stream(
+                streamed_plan = plan_slot.write_stream(
                     _stream_text_with_provider(
                         stream_prompt,
                         fallback_plan,
@@ -794,6 +822,9 @@ def main() -> None:
                 )
                 final_plan = streamed_plan or fallback_plan
                 st.session_state["current_study_plan"] = final_plan
+                st.session_state["current_external_knowledge"] = result.get(
+                    "external_knowledge", {}
+                )
                 _append_estimated_stream_usage(
                     provider=session_input.llm_provider,
                     call_type="study_plan_stream",
@@ -802,20 +833,47 @@ def main() -> None:
                 )
                 st.session_state["current_study_material"] = fallback_material
                 st.session_state["just_streamed_study_plan"] = True
+                if fallback_material:
+                    material_slot.write(fallback_material)
                 st.success(render_prompt("ui.material_ready_success"))
         except Exception:
             st.error(_safe_ui_error("Failed to prepare study session"))
+        finally:
+            st.session_state["is_generating"] = False
 
-    if st.session_state.get("current_study_plan") and not st.session_state.get(
+    is_generating = bool(st.session_state.get("is_generating", False))
+
+    if (
+        not is_generating
+        and st.session_state.get("current_study_plan")
+        and not st.session_state.get(
         "just_streamed_study_plan", False
+        )
     ):
         st.markdown("### Study plan")
         st.write(st.session_state["current_study_plan"])
     st.session_state["just_streamed_study_plan"] = False
 
-    if st.session_state.get("current_study_material"):
+    if not is_generating and st.session_state.get("current_study_material"):
         st.markdown("### Study Material Summary")
         st.write(st.session_state["current_study_material"])
+        ext = st.session_state.get("current_external_knowledge", {})
+        ext_success = (
+            isinstance(ext, dict)
+            and (
+                ext.get("success") is True
+                or str(ext.get("success", "")).strip().lower() in {"true", "1", "yes"}
+            )
+        )
+        if ext_success:
+            source_url = str(ext.get("source_url", "")).strip()
+            title = str(ext.get("title", "Wikipedia")).strip()
+            if source_url:
+                st.markdown(f"**External knowledge source:** [{title}]({source_url})")
+            else:
+                st.caption(f"External knowledge source used: {title}")
+        else:
+            st.caption("External knowledge enrichment unavailable for this run.")
 
         material_export = (
             "StudyGraph - Study Material\n\n"
@@ -832,7 +890,11 @@ def main() -> None:
             mime="text/plain",
         )
 
-    if st.session_state.get("current_session_input") and not st.session_state.get("current_quiz"):
+    if (
+        not is_generating
+        and st.session_state.get("current_session_input")
+        and not st.session_state.get("current_quiz")
+    ):
         if st.button("Start Quiz"):
             try:
                 quiz_graph = build_quiz_graph(store)
@@ -851,7 +913,7 @@ def main() -> None:
             except Exception:
                 st.error(_safe_ui_error("Failed to generate quiz"))
 
-    quiz_questions = st.session_state.get("current_quiz", [])
+    quiz_questions = st.session_state.get("current_quiz", []) if not is_generating else []
     if quiz_questions:
         st.markdown("### Quiz")
         answers: list[str] = []
@@ -933,75 +995,78 @@ def main() -> None:
             except Exception:
                 st.error(_safe_ui_error("Failed to evaluate quiz"))
 
-    history = store.load_session_history(active_profile_id)
-    st.divider()
-    st.subheader("History")
-    st.caption(f"Total sessions: {len(history)}")
-
-    progress_rows = _course_progress([h.model_dump() for h in history])
-    if progress_rows:
-        st.markdown("### Progress by course")
-        for course_name, avg_score, sessions in progress_rows:
-            st.write(f"- **{course_name}:** {avg_score}% average across {sessions} session(s)")
-
-    if not history:
-        st.info("No sessions yet. Complete a quiz to see history grouped by course.")
+    if is_generating:
+        st.caption("Generating new session output. History and analytics will appear after completion.")
     else:
-        st.markdown("### Sessions and weak topics by course")
-        st.caption("Open a course to see its weak-topic counts and session list.")
-        for course_label, sessions_in_course in _group_history_by_course(history):
-            n = len(sessions_in_course)
-            avg = round(sum(s.score_percent for s in sessions_in_course) / n, 1)
-            weak_here = store.weak_topics_summary_for_course(
-                active_profile_id, course_label, top_n=15
-            )
-            weak_preview = (
-                f"{len(weak_here)} tracked weak-topic entr{'y' if len(weak_here) == 1 else 'ies'}"
-                if weak_here
-                else "no weak topics yet"
-            )
-            with st.expander(f"{course_label} — {n} session(s), {avg}% avg · {weak_preview}"):
-                if weak_here:
-                    st.markdown("**Weak topics (this course)**")
-                    for concept, count in weak_here:
-                        st.write(f"- {concept} ({count}×)")
-                else:
-                    st.caption("No weak concepts recorded for this course yet.")
-                # Table: newest session first (sessions_in_course is newest-first)
-                rows = _history_rows(list(reversed(sessions_in_course)))
-                if rows:
-                    st.dataframe(rows, use_container_width=True)
-
-    usage_records = st.session_state.get("usage_records", [])
-    if usage_records:
-        usage_summary = summarize_usage(usage_records)
+        history = store.load_session_history(active_profile_id)
         st.divider()
-        with st.expander("Token & Cost Summary (Current Session)", expanded=False):
-            st.caption("Costs are estimates and may vary by provider pricing updates.")
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Prompt tokens", str(usage_summary["prompt_tokens"]))
-            c2.metric("Completion tokens", str(usage_summary["completion_tokens"]))
-            c3.metric("Total tokens", str(usage_summary["total_tokens"]))
-            c4.metric("Estimated cost (USD)", f"${usage_summary['estimated_cost_usd']:.6f}")
-            if usage_summary["calls_without_usage"] > 0:
-                st.caption(
-                    f"{usage_summary['calls_without_usage']} call(s) did not provide usage metadata."
+        st.subheader("History")
+        st.caption(f"Total sessions: {len(history)}")
+
+        progress_rows = _course_progress([h.model_dump() for h in history])
+        if progress_rows:
+            st.markdown("### Progress by course")
+            for course_name, avg_score, sessions in progress_rows:
+                st.write(f"- **{course_name}:** {avg_score}% average across {sessions} session(s)")
+
+        if not history:
+            st.info("No sessions yet. Complete a quiz to see history grouped by course.")
+        else:
+            st.markdown("### Sessions and weak topics by course")
+            st.caption("Open a course to see its weak-topic counts and session list.")
+            for course_label, sessions_in_course in _group_history_by_course(history):
+                n = len(sessions_in_course)
+                avg = round(sum(s.score_percent for s in sessions_in_course) / n, 1)
+                weak_here = store.weak_topics_summary_for_course(
+                    active_profile_id, course_label, top_n=15
                 )
-            rows = []
-            for rec in usage_records:
-                rows.append(
-                    {
-                        "Call": rec.get("call_type", ""),
-                        "Provider": rec.get("provider", ""),
-                        "Model": rec.get("model", ""),
-                        "Prompt": rec.get("prompt_tokens", 0),
-                        "Completion": rec.get("completion_tokens", 0),
-                        "Total": rec.get("total_tokens", 0),
-                        "Cost (USD est.)": rec.get("estimated_cost_usd"),
-                        "Note": rec.get("note", ""),
-                    }
+                weak_preview = (
+                    f"{len(weak_here)} tracked weak-topic entr{'y' if len(weak_here) == 1 else 'ies'}"
+                    if weak_here
+                    else "no weak topics yet"
                 )
-            st.dataframe(rows, use_container_width=True)
+                with st.expander(f"{course_label} — {n} session(s), {avg}% avg · {weak_preview}"):
+                    if weak_here:
+                        st.markdown("**Weak topics (this course)**")
+                        for concept, count in weak_here:
+                            st.write(f"- {concept} ({count}×)")
+                    else:
+                        st.caption("No weak concepts recorded for this course yet.")
+                    # Table: newest session first (sessions_in_course is newest-first)
+                    rows = _history_rows(list(reversed(sessions_in_course)))
+                    if rows:
+                        st.dataframe(rows, use_container_width=True)
+
+        usage_records = st.session_state.get("usage_records", [])
+        if usage_records:
+            usage_summary = summarize_usage(usage_records)
+            st.divider()
+            with st.expander("Token & Cost Summary (Current Session)", expanded=False):
+                st.caption("Costs are estimates and may vary by provider pricing updates.")
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Prompt tokens", str(usage_summary["prompt_tokens"]))
+                c2.metric("Completion tokens", str(usage_summary["completion_tokens"]))
+                c3.metric("Total tokens", str(usage_summary["total_tokens"]))
+                c4.metric("Estimated cost (USD)", f"${usage_summary['estimated_cost_usd']:.6f}")
+                if usage_summary["calls_without_usage"] > 0:
+                    st.caption(
+                        f"{usage_summary['calls_without_usage']} call(s) did not provide usage metadata."
+                    )
+                rows = []
+                for rec in usage_records:
+                    rows.append(
+                        {
+                            "Call": rec.get("call_type", ""),
+                            "Provider": rec.get("provider", ""),
+                            "Model": rec.get("model", ""),
+                            "Prompt": rec.get("prompt_tokens", 0),
+                            "Completion": rec.get("completion_tokens", 0),
+                            "Total": rec.get("total_tokens", 0),
+                            "Cost (USD est.)": rec.get("estimated_cost_usd"),
+                            "Note": rec.get("note", ""),
+                        }
+                    )
+                st.dataframe(rows, use_container_width=True)
 
     _render_footer()
 

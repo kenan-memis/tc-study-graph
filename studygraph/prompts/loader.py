@@ -41,6 +41,8 @@ DEFAULT_PROMPTS: dict[str, Any] = {
             "Create concise study material in plain text with bullets. "
             "Course: {course}. Topic: {topic}. Student level: {level}. Language: {language}. "
             "Response style preference: {style_hint}. "
+            "External context (if available): {external_context}. "
+            "If external context is present, use it for factual grounding and keep it concise. "
             "Sections: core concept, key points, worked mini-example, common mistakes. "
             "Keep it under 220 words."
         ),

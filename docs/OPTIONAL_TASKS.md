@@ -110,6 +110,23 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
   - `studygraph/graph/workflow.py`
   - `tests/test_retry.py`
 
+### Medium #4 — Implement one more function tool that calls an external API
+- **Status:** ✅ Implemented
+- **What was added:**
+  - New external knowledge tool using Wikipedia API:
+    - `fetch_wikipedia_summary(topic)`
+  - Study material generation now enriches prompt context with external facts when available
+  - UI displays source attribution when external context is used
+  - Failure-safe behavior: if API is unavailable, app continues with normal generation flow
+- **Files:**
+  - `studygraph/tools/external_knowledge.py`
+  - `studygraph/tools/__init__.py`
+  - `studygraph/graph/workflow.py`
+  - `studygraph/ui/app.py`
+  - `studygraph/prompts/prompts.yaml`
+  - `studygraph/prompts/loader.py`
+  - `tests/test_external_knowledge_tool.py`
+
 ---
 
 ## Hard

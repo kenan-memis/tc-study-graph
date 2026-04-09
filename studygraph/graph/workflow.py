@@ -11,6 +11,7 @@ from openai import OpenAI
 from studygraph.memory import MemoryStore
 from studygraph.models import QuizQuestion, SessionRecord, StudySessionInput, StudentProfile
 from studygraph.prompts import render_prompt
+from studygraph.tools import fetch_wikipedia_summary
 from studygraph.usage import build_usage_record
 from studygraph.utils import call_with_retry
 
@@ -23,6 +24,7 @@ class PrepareState(TypedDict, total=False):
     study_material: str
     quiz_questions: list[dict[str, Any]]
     study_material_usage: dict[str, Any]
+    external_knowledge: dict[str, Any]
     error: str
 
 
@@ -46,6 +48,38 @@ class EvaluateState(TypedDict, total=False):
     feedback: list[str]
     recommendation: str
     error: str
+
+
+def _material_fallback_with_external(
+    *,
+    topic: str,
+    course: str,
+    external_context: str,
+    external_source_url: str,
+) -> str:
+    if external_context and external_context != "none":
+        return (
+            f"Core concept ({course} / {topic}):\n"
+            f"{external_context}\n\n"
+            "Key points:\n"
+            "- Identify the main definition and explain it in your own words.\n"
+            "- Extract 3 key facts/rules and connect each one to a practical example.\n"
+            "- Compare this concept with a similar concept to avoid confusion.\n\n"
+            "Worked mini-example:\n"
+            "- Build one short scenario and solve/explain it step by step.\n"
+            "- Verify your answer by checking units, assumptions, or definitions.\n\n"
+            "Common mistakes:\n"
+            "- Memorizing terms without understanding relationships.\n"
+            "- Skipping why/how explanations and focusing only on final answers.\n\n"
+            f"Reference: {external_source_url or 'Wikipedia'}"
+        )
+    return (
+        f"Topic summary for {topic} ({course}):\n"
+        "- Core definition and why it matters.\n"
+        "- 2-3 key rules/formulas.\n"
+        "- One short example with explanation.\n"
+        "- Common mistakes to avoid."
+    )
 
 
 def _fallback_quiz(topic: str) -> list[QuizQuestion]:
@@ -232,6 +266,8 @@ def _build_material_with_openai(topic: str, course: str, level: str, language: s
         level=level,
         language=language,
         style_hint="Friendly",
+        external_context="none",
+        external_source_url="",
     )
     return material
 
@@ -242,15 +278,18 @@ def _build_material_with_openai_styled(
     level: str,
     language: str,
     style_hint: str,
+    external_context: str,
+    external_source_url: str,
     *,
     temperature: float = 0.4,
     top_p: float = 1.0,
 ) -> tuple[str, dict[str, Any] | None]:
     api_key = os.getenv("OPENAI_API_KEY")
-    fallback_material = render_prompt(
-        "generation.material_fallback_template",
+    fallback_material = _material_fallback_with_external(
         topic=topic,
         course=course,
+        external_context=external_context,
+        external_source_url=external_source_url,
     )
     if not api_key:
         return fallback_material, None
@@ -263,6 +302,7 @@ def _build_material_with_openai_styled(
         level=level,
         language=language,
         style_hint=style_hint,
+        external_context=external_context,
     )
     try:
         resp = call_with_retry(
@@ -306,15 +346,18 @@ def _build_material_with_gemini_styled(
     level: str,
     language: str,
     style_hint: str,
+    external_context: str,
+    external_source_url: str,
     *,
     temperature: float = 0.4,
     top_p: float = 1.0,
 ) -> tuple[str, dict[str, Any] | None]:
     api_key = os.getenv("GEMINI_API_KEY")
-    fallback_material = render_prompt(
-        "generation.material_fallback_template",
+    fallback_material = _material_fallback_with_external(
         topic=topic,
         course=course,
+        external_context=external_context,
+        external_source_url=external_source_url,
     )
     if not api_key:
         return fallback_material, None
@@ -326,6 +369,7 @@ def _build_material_with_gemini_styled(
         level=level,
         language=language,
         style_hint=style_hint,
+        external_context=external_context,
     )
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
@@ -405,6 +449,13 @@ def build_prepare_graph(store: MemoryStore):
         profile = StudentProfile.model_validate(state["profile"])
         session = StudySessionInput.model_validate(state["session_input"])
         usage: dict[str, Any] | None = None
+        ext = fetch_wikipedia_summary(session.topic)
+        external_context = (
+            f"{ext.get('title', session.topic)}: {ext.get('summary', '')}"
+            if ext.get("success")
+            else "none"
+        )
+        external_source_url = str(ext.get("source_url", "")).strip()
         if session.llm_provider == "gemini":
             material, usage = _build_material_with_gemini_styled(
                 topic=session.topic,
@@ -412,6 +463,8 @@ def build_prepare_graph(store: MemoryStore):
                 level=profile.education_level,
                 language=profile.preferred_language,
                 style_hint=session.response_style,
+                external_context=external_context,
+                external_source_url=external_source_url,
                 temperature=session.temperature,
                 top_p=session.top_p,
             )
@@ -422,10 +475,16 @@ def build_prepare_graph(store: MemoryStore):
                 level=profile.education_level,
                 language=profile.preferred_language,
                 style_hint=session.response_style,
+                external_context=external_context,
+                external_source_url=external_source_url,
                 temperature=session.temperature,
                 top_p=session.top_p,
             )
-        return {"study_material": material, "study_material_usage": usage or {}}
+        return {
+            "study_material": material,
+            "study_material_usage": usage or {},
+            "external_knowledge": ext,
+        }
 
     graph = StateGraph(PrepareState)
     graph.add_node("load_profile", load_profile_node)
