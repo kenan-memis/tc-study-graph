@@ -9,6 +9,7 @@ from openai import OpenAI
 
 from studygraph.memory import MemoryStore
 from studygraph.models import QuizQuestion, SessionRecord, StudySessionInput, StudentProfile
+from studygraph.prompts import render_prompt
 
 
 class PrepareState(TypedDict, total=False):
@@ -83,12 +84,12 @@ def _generate_quiz_with_openai(topic: str, course: str, level: str, language: st
         return _fallback_quiz(topic)
 
     client = OpenAI(api_key=api_key, timeout=10.0)
-    prompt = (
-        "Generate exactly 5 multiple-choice questions in JSON array format. "
-        "Each item must have keys: question, options, correct_answer, explanation. "
-        f"Topic: {topic}. Course: {course}. Student level: {level}. Language: {language}. "
-        "Options should include 4 choices and correct_answer must match one option exactly. "
-        "Return JSON only."
+    prompt = render_prompt(
+        "generation.quiz_user_prompt_template",
+        topic=topic,
+        course=course,
+        level=level,
+        language=language,
     )
 
     try:
@@ -114,21 +115,21 @@ def _generate_quiz_with_openai(topic: str, course: str, level: str, language: st
 
 def _build_material_with_openai(topic: str, course: str, level: str, language: str) -> str:
     api_key = os.getenv("OPENAI_API_KEY")
+    fallback_material = render_prompt(
+        "generation.material_fallback_template",
+        topic=topic,
+        course=course,
+    )
     if not api_key:
-        return (
-            f"Topic summary for {topic} ({course}):\n"
-            "- Core definition and why it matters.\n"
-            "- 2-3 key rules/formulas.\n"
-            "- One short example with explanation.\n"
-            "- Common mistakes to avoid.\n"
-        )
+        return fallback_material
 
     client = OpenAI(api_key=api_key, timeout=10.0)
-    prompt = (
-        "Create concise study material in plain text with bullets. "
-        f"Course: {course}. Topic: {topic}. Student level: {level}. Language: {language}. "
-        "Sections: core concept, key points, worked mini-example, common mistakes. "
-        "Keep it under 220 words."
+    prompt = render_prompt(
+        "generation.material_user_prompt_template",
+        course=course,
+        topic=topic,
+        level=level,
+        language=language,
     )
     try:
         resp = client.chat.completions.create(
@@ -138,15 +139,12 @@ def _build_material_with_openai(topic: str, course: str, level: str, language: s
             max_tokens=420,
         )
         content = (resp.choices[0].message.content or "").strip()
-        return content or f"Study material could not be generated for {topic}."
-    except Exception:
-        return (
-            f"Topic summary for {topic} ({course}):\n"
-            "- Core definition and why it matters.\n"
-            "- 2-3 key rules/formulas.\n"
-            "- One short example with explanation.\n"
-            "- Common mistakes to avoid.\n"
+        return content or render_prompt(
+            "generation.material_generation_failure_template",
+            topic=topic,
         )
+    except Exception:
+        return fallback_material
 
 
 def build_prepare_graph(store: MemoryStore):
@@ -160,7 +158,9 @@ def build_prepare_graph(store: MemoryStore):
     def build_study_plan_node(state: PrepareState) -> PrepareState:
         profile = StudentProfile.model_validate(state["profile"])
         session = StudySessionInput.model_validate(state["session_input"])
-        weak_topics = store.weak_topics_summary(state["profile_id"], top_n=3)
+        weak_topics = store.weak_topics_summary_for_course(
+            state["profile_id"], session.course, top_n=3
+        )
         weak_text = ", ".join([f"{t} ({n})" for t, n in weak_topics]) if weak_topics else "no prior weak topics yet"
         plan = (
             f"Study plan for {profile.learner_name}: "
@@ -259,13 +259,23 @@ def build_evaluation_graph(store: MemoryStore):
         score = float(state.get("score_percent", 0.0))
         session = StudySessionInput.model_validate(state["session_input"])
         if score < 60:
-            rec = (
-                f"Score {score}%. Focus on fundamentals in {session.topic} next session with easier questions."
+            rec = render_prompt(
+                "evaluation.recommendation_low_template",
+                score=score,
+                topic=session.topic,
             )
         elif score < 85:
-            rec = f"Score {score}%. Keep practicing {session.topic} and review the mistakes once more."
+            rec = render_prompt(
+                "evaluation.recommendation_mid_template",
+                score=score,
+                topic=session.topic,
+            )
         else:
-            rec = f"Score {score}%. Great progress. Move to the next advanced topic in {session.course}."
+            rec = render_prompt(
+                "evaluation.recommendation_high_template",
+                score=score,
+                course=session.course,
+            )
         return {"recommendation": rec}
 
     graph = StateGraph(EvaluateState)

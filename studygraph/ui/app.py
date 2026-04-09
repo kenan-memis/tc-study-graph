@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import os
+from collections import defaultdict
 from typing import Generator
 from datetime import datetime, timezone
 
@@ -12,9 +13,21 @@ from openai import OpenAI
 from studygraph.graph import build_evaluation_graph, build_prepare_graph, build_quiz_graph
 from studygraph.memory import MemoryStore
 from studygraph.models import StudySessionInput, StudentProfile
+from studygraph.prompts import render_prompt
 
 
 load_dotenv()
+
+STANDARD_COURSES = [
+    "Math",
+    "Biology",
+    "Chemistry",
+    "Physics",
+    "History",
+    "Geography",
+    "English",
+    "Computer science",
+]
 
 
 def _store() -> MemoryStore:
@@ -30,15 +43,13 @@ def _stream_text_from_openai(prompt: str, fallback_text: str) -> Generator[str, 
 
     try:
         client = OpenAI(api_key=api_key, timeout=20.0)
+        system_prompt = render_prompt("streaming.system_coach")
         stream = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": (
-                        "You are a concise and encouraging study coach. "
-                        "Return plain text only."
-                    ),
+                    "content": system_prompt,
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -63,12 +74,15 @@ def _build_study_plan_stream_prompt(
     weak_summary: list[tuple[str, int]],
 ) -> str:
     weak_text = ", ".join([f"{name} ({count})" for name, count in weak_summary]) or "none yet"
-    return (
-        f"Create a concise study plan for {profile.learner_name}. "
-        f"Education level: {profile.education_level}. Language: {profile.preferred_language}. "
-        f"Course: {session_input.course}. Topic: {session_input.topic}. Goal: {session_input.study_goal}. "
-        f"Historical weak concepts: {weak_text}. "
-        "Provide a practical plan in 4-6 bullet points."
+    return render_prompt(
+        "streaming.study_plan_user_template",
+        learner_name=profile.learner_name,
+        education_level=profile.education_level,
+        preferred_language=profile.preferred_language,
+        course=session_input.course,
+        topic=session_input.topic,
+        study_goal=session_input.study_goal,
+        weak_text=weak_text,
     )
 
 
@@ -79,18 +93,22 @@ def _build_recommendation_stream_prompt(
     feedback: list[str],
 ) -> str:
     feedback_text = " | ".join(feedback[:3]) if feedback else "No major mistakes."
-    return (
-        f"Write a short next-step recommendation for a student. "
-        f"Name: {profile.learner_name}. Level: {profile.education_level}. "
-        f"Course: {session_input.course}. Topic: {session_input.topic}. "
-        f"Score: {score_percent}%. Key mistakes: {feedback_text}. "
-        "Return 3-5 concise bullet points."
+    return render_prompt(
+        "streaming.recommendation_user_template",
+        learner_name=profile.learner_name,
+        education_level=profile.education_level,
+        course=session_input.course,
+        topic=session_input.topic,
+        score_percent=score_percent,
+        feedback_text=feedback_text,
     )
 
 
 def _render_footer() -> None:
+    footer_line_1 = render_prompt("ui.fixed_footer_line_1")
+    footer_line_2 = render_prompt("ui.fixed_footer_line_2")
     st.markdown(
-        """
+        f"""
         <style>
           .sg-fixed-footer {
             position: fixed;
@@ -113,12 +131,36 @@ def _render_footer() -> None:
         </style>
         <div class="sg-footer-spacer"></div>
         <div class="sg-fixed-footer">
-          <div>Sprint 3 – Building with AI Agents</div>
-          <div>Turing College 2026</div>
+          <div>{footer_line_1}</div>
+          <div>{footer_line_2}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+def _group_history_by_course(
+    history: list,
+) -> list[tuple[str, list]]:
+    """Return [(course_label, sessions_newest_first), ...] sorted by course name."""
+    buckets: dict[str, list] = defaultdict(list)
+    display: dict[str, str] = {}
+
+    def key_for(course: str) -> str:
+        k = (course or "").strip().lower()
+        return k if k else "(no course)"
+
+    for rec in history:
+        k = key_for(rec.course)
+        buckets[k].append(rec)
+        if k not in display:
+            display[k] = (rec.course or "").strip() or "(no course)"
+
+    out: list[tuple[str, list]] = []
+    for k in sorted(buckets.keys(), key=lambda x: display[x].lower()):
+        sessions = sorted(buckets[k], key=lambda r: r.created_at, reverse=True)
+        out.append((display[k], sessions))
+    return out
+
 
 def _course_progress(history: list[dict]) -> list[tuple[str, float, int]]:
     sums: dict[str, float] = {}
@@ -135,17 +177,6 @@ def _course_progress(history: list[dict]) -> list[tuple[str, float, int]]:
         cnt = counts[course]
         result.append((course, round(total / cnt, 1), cnt))
     return sorted(result, key=lambda x: x[0].lower())
-
-
-def _normalize_course(course: str) -> str:
-    return (course or "").strip().lower()
-
-
-def _filter_history_by_course(history: list, course: str) -> list:
-    target = _normalize_course(course)
-    if not target:
-        return []
-    return [h for h in history if _normalize_course(h.course) == target]
 
 
 def _history_rows(history: list) -> list[dict]:
@@ -171,16 +202,17 @@ def _history_rows(history: list) -> list[dict]:
 
 def main() -> None:
     st.set_page_config(page_title="StudyGraph", page_icon="📘", layout="wide")
-    st.title("StudyGraph")
-    st.caption("LangGraph-based student study and exam preparation assistant")
+    st.title(render_prompt("ui.app_title"))
+    st.caption(render_prompt("ui.app_subtitle"))
     store = _store()
 
-    st.sidebar.header("Profile Manager")
+    st.sidebar.header(render_prompt("ui.sidebar_profile_manager"))
     profile_ids = store.list_profile_ids()
-    selected = st.sidebar.selectbox("Select profile", options=profile_ids or ["No profile yet"])
-    active_profile_id = selected if selected != "No profile yet" else None
+    no_profile_label = render_prompt("ui.no_profile_yet")
+    selected = st.sidebar.selectbox("Select profile", options=profile_ids or [no_profile_label])
+    active_profile_id = selected if selected != no_profile_label else None
 
-    with st.sidebar.expander("Create or update profile", expanded=True):
+    with st.sidebar.expander(render_prompt("ui.create_profile_section"), expanded=True):
         learner_name = st.text_input("Learner name", value="Student One")
         education_options = {
             "Primary": "primary",
@@ -212,10 +244,7 @@ def main() -> None:
                 )
                 duplicate_id = store.find_duplicate_profile(profile)
                 if duplicate_id is not None:
-                    st.warning(
-                        f"An identical profile already exists: `{duplicate_id}`. "
-                        "Please select it from the profile list or update that profile."
-                    )
+                    st.warning(render_prompt("ui.duplicate_profile_warning", profile_id=duplicate_id))
                     st.stop()
                 new_id = store.create_profile_id(profile.learner_name)
                 store.save_profile(new_id, profile)
@@ -239,13 +268,13 @@ def main() -> None:
                 st.error(f"Failed to update profile: {exc}")
 
     if not active_profile_id:
-        st.info("Create at least one profile from the sidebar to start studying.")
+        st.info(render_prompt("ui.create_profile_prompt"))
         _render_footer()
         return
 
     profile = store.load_profile(active_profile_id)
     if profile is None:
-        st.warning("Selected profile could not be loaded.")
+        st.warning(render_prompt("ui.no_profile_loaded_warning"))
         return
 
     st.subheader(f"Active profile: `{active_profile_id}`")
@@ -267,7 +296,17 @@ def main() -> None:
 
     st.divider()
     st.subheader("Start Study Session")
-    course = st.text_input("Course", value="Math")
+    course_choice = st.selectbox(
+        "Course",
+        options=STANDARD_COURSES + ["Other…"],
+        index=0,
+    )
+    course_other = ""
+    if course_choice == "Other…":
+        course_other = st.text_input("Course name", placeholder="e.g. Music, Economics")
+        course = (course_other or "").strip()
+    else:
+        course = course_choice
     topic = st.text_input("Topic", value="Algebra basics")
     study_goal = st.selectbox(
         "Study goal",
@@ -283,6 +322,9 @@ def main() -> None:
 
     if st.button("Generate plan and study material", type="primary"):
         try:
+            if course_choice == "Other…" and not course:
+                st.error("Please enter a course name when you choose “Other…”")
+                st.stop()
             session_input = StudySessionInput(course=course, topic=topic, study_goal=study_goal)
             prepare_graph = build_prepare_graph(store)
             result = prepare_graph.invoke(
@@ -295,7 +337,9 @@ def main() -> None:
                 st.session_state["current_quiz"] = []
                 fallback_plan = result.get("study_plan", "")
                 fallback_material = result.get("study_material", "")
-                weak_summary = store.weak_topics_summary(active_profile_id, top_n=3)
+                weak_summary = store.weak_topics_summary_for_course(
+                    active_profile_id, session_input.course, top_n=3
+                )
                 stream_prompt = _build_study_plan_stream_prompt(profile, session_input, weak_summary)
                 st.markdown("### Study plan")
                 streamed_plan = st.write_stream(
@@ -304,7 +348,7 @@ def main() -> None:
                 st.session_state["current_study_plan"] = streamed_plan or fallback_plan
                 st.session_state["current_study_material"] = fallback_material
                 st.session_state["just_streamed_study_plan"] = True
-                st.success("Study plan and material ready.")
+                st.success(render_prompt("ui.material_ready_success"))
         except Exception as exc:
             st.error(f"Failed to prepare study session: {exc}")
 
@@ -348,7 +392,7 @@ def main() -> None:
                     st.error(quiz_result["error"])
                 else:
                     st.session_state["current_quiz"] = quiz_result.get("quiz_questions", [])
-                    st.success("Quiz generated. Continue with exercises below.")
+                    st.success(render_prompt("ui.quiz_ready_success"))
             except Exception as exc:
                 st.error(f"Failed to generate quiz: {exc}")
 
@@ -425,52 +469,43 @@ def main() -> None:
                 st.error(f"Failed to evaluate quiz: {exc}")
 
     history = store.load_session_history(active_profile_id)
-    selected_course_history = _filter_history_by_course(history, course)
-    st.divider()
-    st.subheader("Progress and Suggestions")
-    if selected_course_history:
-        if st.button("Do you have suggestions for me?"):
-            course_avg = round(
-                sum(h.score_percent for h in selected_course_history) / len(selected_course_history), 1
-            )
-            course_weak_counter: dict[str, int] = {}
-            for row in selected_course_history:
-                for concept in row.weak_concepts:
-                    course_weak_counter[concept] = course_weak_counter.get(concept, 0) + 1
-            top_weak = sorted(course_weak_counter.items(), key=lambda x: x[1], reverse=True)[:3]
-            weak_text = ", ".join([w for w, _ in top_weak]) or "none"
-            st.info(
-                f"{course} progress: {course_avg}% across {len(selected_course_history)} session(s). "
-                f"Suggested focus: {weak_text}. "
-                f"Next step: continue {course} with 'Exam preparation' after revising weak concepts."
-            )
-    else:
-        st.caption(
-            f"No previous sessions for '{course}' yet. "
-            "Complete one quiz in this course to unlock course-specific suggestions."
-        )
-
     st.divider()
     st.subheader("History")
     st.caption(f"Total sessions: {len(history)}")
-    weak_summary = store.weak_topics_summary(active_profile_id, top_n=5)
-    if weak_summary:
-        st.write("Top weak concepts:")
-        for concept, count in weak_summary:
-            st.write(f"- {concept} ({count})")
-    else:
-        st.write("No weak concepts recorded yet.")
 
     progress_rows = _course_progress([h.model_dump() for h in history])
     if progress_rows:
-        st.markdown("### Progress by Course")
+        st.markdown("### Progress by course")
         for course_name, avg_score, sessions in progress_rows:
-            st.write(f"- {course_name}: {avg_score}% average across {sessions} session(s)")
+            st.write(f"- **{course_name}:** {avg_score}% average across {sessions} session(s)")
 
-    history_rows = _history_rows(history)
-    if history_rows:
-        st.markdown("### Session History")
-        st.dataframe(history_rows, use_container_width=True)
+    if not history:
+        st.info("No sessions yet. Complete a quiz to see history grouped by course.")
+    else:
+        st.markdown("### Sessions and weak topics by course")
+        st.caption("Open a course to see its weak-topic counts and session list.")
+        for course_label, sessions_in_course in _group_history_by_course(history):
+            n = len(sessions_in_course)
+            avg = round(sum(s.score_percent for s in sessions_in_course) / n, 1)
+            weak_here = store.weak_topics_summary_for_course(
+                active_profile_id, course_label, top_n=15
+            )
+            weak_preview = (
+                f"{len(weak_here)} tracked weak-topic entr{'y' if len(weak_here) == 1 else 'ies'}"
+                if weak_here
+                else "no weak topics yet"
+            )
+            with st.expander(f"{course_label} — {n} session(s), {avg}% avg · {weak_preview}"):
+                if weak_here:
+                    st.markdown("**Weak topics (this course)**")
+                    for concept, count in weak_here:
+                        st.write(f"- {concept} ({count}×)")
+                else:
+                    st.caption("No weak concepts recorded for this course yet.")
+                # Table: newest session first (sessions_in_course is newest-first)
+                rows = _history_rows(list(reversed(sessions_in_course)))
+                if rows:
+                    st.dataframe(rows, use_container_width=True)
 
     _render_footer()
 

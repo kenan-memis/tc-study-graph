@@ -83,9 +83,27 @@ class MemoryStore:
             return []
         return [SessionRecord.model_validate(item) for item in raw]
 
+    @staticmethod
+    def _normalize_course(course: str) -> str:
+        return (course or "").strip().lower()
+
     def weak_topics_summary(self, profile_id: str, *, top_n: int = 5) -> list[tuple[str, int]]:
         counter: Counter[str] = Counter()
         for record in self.load_session_history(profile_id):
+            counter.update(record.weak_concepts)
+        return counter.most_common(top_n)
+
+    def weak_topics_summary_for_course(
+        self, profile_id: str, course: str, *, top_n: int = 5
+    ) -> list[tuple[str, int]]:
+        """Weak concepts only from sessions for this course (cross-course isolation)."""
+        target = self._normalize_course(course)
+        if not target:
+            return []
+        counter: Counter[str] = Counter()
+        for record in self.load_session_history(profile_id):
+            if self._normalize_course(record.course) != target:
+                continue
             counter.update(record.weak_concepts)
         return counter.most_common(top_n)
 

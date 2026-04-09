@@ -1504,6 +1504,7 @@ dependencies = [
     { name = "openai" },
     { name = "pydantic" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "streamlit" },
 ]
 
@@ -1520,6 +1521,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
+    { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "streamlit", specifier = ">=1.44.0" },
 ]
 provides-extras = ["dev"]
