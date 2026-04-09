@@ -30,8 +30,20 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
 - **Planned approach:** provider/model selector (OpenAI/Gemini) for selected text-generation nodes
 
 ### Easy #4 — Add OpenAI settings (temperature/top-p)
-- **Status:** Not started
-- **Planned approach:** Streamlit sliders in a settings section, applied to generation calls
+- **Status:** ✅ Implemented
+- **What was added:**
+  - `Model settings (OpenAI)` UI expander with:
+    - `Temperature` slider (0.0–2.0)
+    - `Top-p` slider (0.0–1.0)
+  - Values are stored in session input and applied to:
+    - streamed study-plan generation
+    - streamed recommendation generation
+    - study material generation
+    - quiz generation
+- **Files:**
+  - `studygraph/ui/app.py`
+  - `studygraph/models.py`
+  - `studygraph/graph/workflow.py`
 
 ### Easy #5 — Interactive help/chatbot guide
 - **Status:** ✅ Implemented

@@ -36,7 +36,13 @@ def _store() -> MemoryStore:
     return MemoryStore(base_dir=root / "data" / "memory")
 
 
-def _stream_text_from_openai(prompt: str, fallback_text: str) -> Generator[str, None, None]:
+def _stream_text_from_openai(
+    prompt: str,
+    fallback_text: str,
+    *,
+    temperature: float = 0.4,
+    top_p: float = 1.0,
+) -> Generator[str, None, None]:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         yield fallback_text
@@ -54,7 +60,8 @@ def _stream_text_from_openai(prompt: str, fallback_text: str) -> Generator[str, 
                 },
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.4,
+            temperature=temperature,
+            top_p=top_p,
             stream=True,
         )
         emitted = False
@@ -314,6 +321,10 @@ def main() -> None:
         st.session_state["study_goal_choice"] = SELECT_PLACEHOLDER
     if "response_style_choice" not in st.session_state:
         st.session_state["response_style_choice"] = "Friendly"
+    if "temperature_value" not in st.session_state:
+        st.session_state["temperature_value"] = 0.4
+    if "top_p_value" not in st.session_state:
+        st.session_state["top_p_value"] = 1.0
 
     with st.expander("Interactive help: build a good study request", expanded=False):
         st.markdown(
@@ -379,6 +390,25 @@ def main() -> None:
         options=["Friendly", "Formal", "Concise"],
         key="response_style_choice",
     )
+    with st.expander("Model settings (OpenAI)", expanded=False):
+        st.slider(
+            "Temperature",
+            min_value=0.0,
+            max_value=2.0,
+            value=0.4,
+            step=0.1,
+            key="temperature_value",
+            help="Lower = more deterministic, higher = more creative.",
+        )
+        st.slider(
+            "Top-p",
+            min_value=0.0,
+            max_value=1.0,
+            value=1.0,
+            step=0.05,
+            key="top_p_value",
+            help="Nucleus sampling. 1.0 means no truncation.",
+        )
 
     if st.button("Generate plan and study material", type="primary"):
         try:
@@ -396,6 +426,8 @@ def main() -> None:
                 topic=topic,
                 study_goal=study_goal,
                 response_style=response_style,
+                temperature=float(st.session_state["temperature_value"]),
+                top_p=float(st.session_state["top_p_value"]),
             )
             prepare_graph = build_prepare_graph(store)
             result = prepare_graph.invoke(
@@ -414,7 +446,12 @@ def main() -> None:
                 stream_prompt = _build_study_plan_stream_prompt(profile, session_input, weak_summary)
                 st.markdown("### Study plan")
                 streamed_plan = st.write_stream(
-                    _stream_text_from_openai(stream_prompt, fallback_plan)
+                    _stream_text_from_openai(
+                        stream_prompt,
+                        fallback_plan,
+                        temperature=session_input.temperature,
+                        top_p=session_input.top_p,
+                    )
                 )
                 st.session_state["current_study_plan"] = streamed_plan or fallback_plan
                 st.session_state["current_study_material"] = fallback_material
@@ -517,7 +554,10 @@ def main() -> None:
                     )
                     streamed_recommendation = st.write_stream(
                         _stream_text_from_openai(
-                            recommendation_prompt, str(fallback_recommendation)
+                            recommendation_prompt,
+                            str(fallback_recommendation),
+                            temperature=session_input.temperature,
+                            top_p=session_input.top_p,
                         )
                     )
                     st.session_state["latest_recommendation"] = (

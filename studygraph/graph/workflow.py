@@ -78,7 +78,15 @@ def _fallback_quiz(topic: str) -> list[QuizQuestion]:
     ]
 
 
-def _generate_quiz_with_openai(topic: str, course: str, level: str, language: str) -> list[QuizQuestion]:
+def _generate_quiz_with_openai(
+    topic: str,
+    course: str,
+    level: str,
+    language: str,
+    *,
+    temperature: float = 0.4,
+    top_p: float = 1.0,
+) -> list[QuizQuestion]:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return _fallback_quiz(topic)
@@ -95,7 +103,8 @@ def _generate_quiz_with_openai(topic: str, course: str, level: str, language: st
     try:
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
-            temperature=0.4,
+            temperature=temperature,
+            top_p=top_p,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
             max_tokens=1400,
@@ -129,6 +138,9 @@ def _build_material_with_openai_styled(
     level: str,
     language: str,
     style_hint: str,
+    *,
+    temperature: float = 0.4,
+    top_p: float = 1.0,
 ) -> str:
     api_key = os.getenv("OPENAI_API_KEY")
     fallback_material = render_prompt(
@@ -151,7 +163,8 @@ def _build_material_with_openai_styled(
     try:
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
-            temperature=0.4,
+            temperature=temperature,
+            top_p=top_p,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=420,
         )
@@ -197,6 +210,8 @@ def build_prepare_graph(store: MemoryStore):
             level=profile.education_level,
             language=profile.preferred_language,
             style_hint=session.response_style,
+            temperature=session.temperature,
+            top_p=session.top_p,
         )
         return {"study_material": material}
 
@@ -226,6 +241,8 @@ def build_quiz_graph(store: MemoryStore):
             course=session.course,
             level=profile.education_level,
             language=profile.preferred_language,
+            temperature=session.temperature,
+            top_p=session.top_p,
         )
         return {"quiz_questions": [q.model_dump() for q in questions]}
 

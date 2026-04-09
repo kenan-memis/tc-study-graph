@@ -30,6 +30,8 @@ class StudySessionInput(BaseModel):
     topic: str = Field(min_length=1, max_length=800)
     study_goal: str = Field(default="quick revision", min_length=1, max_length=200)
     response_style: ResponseStyle = "Friendly"
+    temperature: float = Field(default=0.4, ge=0.0, le=2.0)
+    top_p: float = Field(default=1.0, ge=0.0, le=1.0)
 
     @field_validator("course", "topic", "study_goal", "response_style")
     @classmethod
