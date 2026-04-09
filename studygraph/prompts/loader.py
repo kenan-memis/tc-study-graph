@@ -113,6 +113,10 @@ DEFAULT_PROMPTS: dict[str, Any] = {
         "error_generate_quiz": "We couldn't generate the quiz. Please try again.",
         "error_evaluate_quiz": "We couldn't evaluate your answers. Please try again.",
         "error_graph_generic": "Something went wrong. Please try again.",
+        "input_topic_empty": "Please enter a topic or study request.",
+        "input_course_too_long": "Course name is too long (max {max} characters).",
+        "input_topic_too_long": "Topic / study request is too long (max {max} characters).",
+        "input_feedback_note_too_long": "Note is too long (max {max} characters).",
     },
 }
 

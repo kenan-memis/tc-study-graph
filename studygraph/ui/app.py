@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from studygraph.graph import build_evaluation_graph, build_prepare_graph, build_quiz_graph
+from studygraph.limits import MAX_COURSE, MAX_FEEDBACK_NOTE, MAX_LEARNER_NAME, MAX_TOPIC
 from studygraph.memory import MemoryStore
 from studygraph.models import FeedbackRecord, StudySessionInput, StudentProfile
 from studygraph.prompts import render_prompt
@@ -559,7 +560,11 @@ def main() -> None:
             key="profile_form_mode",
         )
         _sync_profile_form_state(form_mode, active_profile_id, selected_profile)
-        learner_name = st.text_input("Learner name", key="pf_learner_name")
+        learner_name = st.text_input(
+            "Learner name",
+            key="pf_learner_name",
+            max_chars=MAX_LEARNER_NAME,
+        )
         education_options = {
             "Primary": "primary",
             "Middle": "middle",
@@ -802,6 +807,7 @@ def main() -> None:
             "Course name",
             placeholder="e.g. Music, Economics",
             key="course_other",
+            max_chars=MAX_COURSE,
         )
         course = (course_other or "").strip()
     else:
@@ -811,6 +817,7 @@ def main() -> None:
         "Topic / study request",
         key="topic_input",
         height=120,
+        max_chars=MAX_TOPIC,
         placeholder=(
             "Examples: 'Division' OR "
             "'I struggle with long division and remainders, especially in word problems. "
@@ -849,6 +856,17 @@ def main() -> None:
             st.error("Please enter a course name when you choose “Other…”")
             st.stop()
 
+        topic_stripped = (topic or "").strip()
+        if not topic_stripped:
+            st.error(render_prompt("ui.input_topic_empty"))
+            st.stop()
+        if len(course) > MAX_COURSE:
+            st.error(render_prompt("ui.input_course_too_long", max=MAX_COURSE))
+            st.stop()
+        if len(topic_stripped) > MAX_TOPIC:
+            st.error(render_prompt("ui.input_topic_too_long", max=MAX_TOPIC))
+            st.stop()
+
         if not _rate_limit_allow("generate_plan_material", RATE_LIMIT_GENERATE_SECONDS):
             st.stop()
 
@@ -868,7 +886,7 @@ def main() -> None:
             st.session_state.pop(key, None)
         st.session_state["pending_generation"] = {
             "course": course,
-            "topic": topic,
+            "topic": topic_stripped,
             "study_goal": study_goal,
             "response_style": response_style,
         }
@@ -1036,6 +1054,7 @@ def main() -> None:
             fb_note = st.text_input(
                 "Optional note",
                 key="fb_note",
+                max_chars=MAX_FEEDBACK_NOTE,
                 placeholder="e.g. More examples, less theory, simpler language",
             )
             if st.button("Save feedback", key="fb_save", type="primary"):
@@ -1043,13 +1062,22 @@ def main() -> None:
                     if fb_signal not in {"up", "down"}:
                         st.error("Select 👍 or 👎 before saving feedback.")
                         st.stop()
+                    note_stripped = (fb_note or "").strip()
+                    if len(note_stripped) > MAX_FEEDBACK_NOTE:
+                        st.error(
+                            render_prompt(
+                                "ui.input_feedback_note_too_long",
+                                max=MAX_FEEDBACK_NOTE,
+                            )
+                        )
+                        st.stop()
                     session = st.session_state.get("current_session_input", {})
                     record = FeedbackRecord(
                         course=str(session.get("course", "")).strip(),
                         topic=str(session.get("topic", "")).strip(),
                         signal=fb_signal,
                         reasons=fb_reasons,
-                        note=fb_note,
+                        note=note_stripped,
                     )
                     store.append_feedback_record(active_profile_id, record)
                     st.success("Feedback saved. Next generations will adapt to it.")
