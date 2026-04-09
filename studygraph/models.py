@@ -10,6 +10,7 @@ EducationLevel = Literal["primary", "middle", "high", "university_exam_prep"]
 DifficultyLevel = Literal["easy", "medium", "hard"]
 PaceLevel = Literal["slow", "balanced", "fast"]
 ResponseStyle = Literal["Friendly", "Formal", "Concise"]
+LlmProvider = Literal["openai", "gemini"]
 
 
 class StudentProfile(BaseModel):
@@ -30,10 +31,11 @@ class StudySessionInput(BaseModel):
     topic: str = Field(min_length=1, max_length=800)
     study_goal: str = Field(default="quick revision", min_length=1, max_length=200)
     response_style: ResponseStyle = "Friendly"
+    llm_provider: LlmProvider = "openai"
     temperature: float = Field(default=0.4, ge=0.0, le=2.0)
     top_p: float = Field(default=1.0, ge=0.0, le=1.0)
 
-    @field_validator("course", "topic", "study_goal", "response_style")
+    @field_validator("course", "topic", "study_goal", "response_style", "llm_provider")
     @classmethod
     def _strip_text(cls, value: str) -> str:
         return value.strip()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from urllib import error, request
 from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -122,6 +123,73 @@ def _generate_quiz_with_openai(
         return _fallback_quiz(topic)
 
 
+def _extract_json_block(text: str) -> str:
+    raw = (text or "").strip()
+    if raw.startswith("```"):
+        lines = raw.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        raw = "\n".join(lines).strip()
+    return raw
+
+
+def _generate_quiz_with_gemini(
+    topic: str,
+    course: str,
+    level: str,
+    language: str,
+    *,
+    temperature: float = 0.4,
+    top_p: float = 1.0,
+) -> list[QuizQuestion]:
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return _fallback_quiz(topic)
+
+    prompt = render_prompt(
+        "generation.quiz_user_prompt_template",
+        topic=topic,
+        course=course,
+        level=level,
+        language=language,
+    )
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-1.5-flash:generateContent?key={api_key}"
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": temperature,
+            "topP": top_p,
+            "responseMimeType": "application/json",
+        },
+    }
+    try:
+        req = request.Request(
+            url=url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(req, timeout=10) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+        parts = body["candidates"][0]["content"]["parts"]
+        text = "".join([p.get("text", "") for p in parts if isinstance(p, dict)])
+        data = json.loads(_extract_json_block(text))
+        raw_items = data.get("questions") if isinstance(data, dict) else data
+        if not isinstance(raw_items, list):
+            return _fallback_quiz(topic)
+        parsed: list[QuizQuestion] = []
+        for item in raw_items[:5]:
+            parsed.append(QuizQuestion.model_validate(item))
+        return parsed if len(parsed) == 5 else _fallback_quiz(topic)
+    except Exception:
+        return _fallback_quiz(topic)
+
+
 def _build_material_with_openai(topic: str, course: str, level: str, language: str) -> str:
     return _build_material_with_openai_styled(
         topic=topic,
@@ -177,6 +245,63 @@ def _build_material_with_openai_styled(
         return fallback_material
 
 
+def _build_material_with_gemini_styled(
+    topic: str,
+    course: str,
+    level: str,
+    language: str,
+    style_hint: str,
+    *,
+    temperature: float = 0.4,
+    top_p: float = 1.0,
+) -> str:
+    api_key = os.getenv("GEMINI_API_KEY")
+    fallback_material = render_prompt(
+        "generation.material_fallback_template",
+        topic=topic,
+        course=course,
+    )
+    if not api_key:
+        return fallback_material
+
+    prompt = render_prompt(
+        "generation.material_user_prompt_template",
+        course=course,
+        topic=topic,
+        level=level,
+        language=language,
+        style_hint=style_hint,
+    )
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-1.5-flash:generateContent?key={api_key}"
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": temperature,
+            "topP": top_p,
+        },
+    }
+    try:
+        req = request.Request(
+            url=url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(req, timeout=10) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+        parts = body["candidates"][0]["content"]["parts"]
+        content = "".join([p.get("text", "") for p in parts if isinstance(p, dict)]).strip()
+        return content or render_prompt(
+            "generation.material_generation_failure_template",
+            topic=topic,
+        )
+    except Exception:
+        return fallback_material
+
+
 def build_prepare_graph(store: MemoryStore):
     def load_profile_node(state: PrepareState) -> PrepareState:
         profile_id = state["profile_id"]
@@ -204,15 +329,26 @@ def build_prepare_graph(store: MemoryStore):
     def build_material_node(state: PrepareState) -> PrepareState:
         profile = StudentProfile.model_validate(state["profile"])
         session = StudySessionInput.model_validate(state["session_input"])
-        material = _build_material_with_openai_styled(
-            topic=session.topic,
-            course=session.course,
-            level=profile.education_level,
-            language=profile.preferred_language,
-            style_hint=session.response_style,
-            temperature=session.temperature,
-            top_p=session.top_p,
-        )
+        if session.llm_provider == "gemini":
+            material = _build_material_with_gemini_styled(
+                topic=session.topic,
+                course=session.course,
+                level=profile.education_level,
+                language=profile.preferred_language,
+                style_hint=session.response_style,
+                temperature=session.temperature,
+                top_p=session.top_p,
+            )
+        else:
+            material = _build_material_with_openai_styled(
+                topic=session.topic,
+                course=session.course,
+                level=profile.education_level,
+                language=profile.preferred_language,
+                style_hint=session.response_style,
+                temperature=session.temperature,
+                top_p=session.top_p,
+            )
         return {"study_material": material}
 
     graph = StateGraph(PrepareState)
@@ -236,14 +372,24 @@ def build_quiz_graph(store: MemoryStore):
     def generate_quiz_node(state: QuizState) -> QuizState:
         profile = StudentProfile.model_validate(state["profile"])
         session = StudySessionInput.model_validate(state["session_input"])
-        questions = _generate_quiz_with_openai(
-            topic=session.topic,
-            course=session.course,
-            level=profile.education_level,
-            language=profile.preferred_language,
-            temperature=session.temperature,
-            top_p=session.top_p,
-        )
+        if session.llm_provider == "gemini":
+            questions = _generate_quiz_with_gemini(
+                topic=session.topic,
+                course=session.course,
+                level=profile.education_level,
+                language=profile.preferred_language,
+                temperature=session.temperature,
+                top_p=session.top_p,
+            )
+        else:
+            questions = _generate_quiz_with_openai(
+                topic=session.topic,
+                course=session.course,
+                level=profile.education_level,
+                language=profile.preferred_language,
+                temperature=session.temperature,
+                top_p=session.top_p,
+            )
         return {"quiz_questions": [q.model_dump() for q in questions]}
 
     graph = StateGraph(QuizState)

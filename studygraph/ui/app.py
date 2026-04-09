@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 import os
+import json
 from collections import defaultdict
 from typing import Generator
 from datetime import datetime, timezone
+from urllib import request
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -74,6 +76,64 @@ def _stream_text_from_openai(
             yield fallback_text
     except Exception:
         yield fallback_text
+
+
+def _stream_text_from_gemini(
+    prompt: str,
+    fallback_text: str,
+    *,
+    temperature: float = 0.4,
+    top_p: float = 1.0,
+) -> Generator[str, None, None]:
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        yield fallback_text
+        return
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-1.5-flash:generateContent?key={api_key}"
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": temperature, "topP": top_p},
+    }
+    try:
+        req = request.Request(
+            url=url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(req, timeout=20) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+        parts = body["candidates"][0]["content"]["parts"]
+        text = "".join([p.get("text", "") for p in parts if isinstance(p, dict)]).strip()
+        yield text or fallback_text
+    except Exception:
+        yield fallback_text
+
+
+def _stream_text_with_provider(
+    prompt: str,
+    fallback_text: str,
+    *,
+    provider: str,
+    temperature: float,
+    top_p: float,
+) -> Generator[str, None, None]:
+    if provider == "gemini":
+        return _stream_text_from_gemini(
+            prompt,
+            fallback_text,
+            temperature=temperature,
+            top_p=top_p,
+        )
+    return _stream_text_from_openai(
+        prompt,
+        fallback_text,
+        temperature=temperature,
+        top_p=top_p,
+    )
 
 
 def _build_study_plan_stream_prompt(
@@ -321,6 +381,8 @@ def main() -> None:
         st.session_state["study_goal_choice"] = SELECT_PLACEHOLDER
     if "response_style_choice" not in st.session_state:
         st.session_state["response_style_choice"] = "Friendly"
+    if "provider_choice" not in st.session_state:
+        st.session_state["provider_choice"] = "OpenAI"
     if "temperature_value" not in st.session_state:
         st.session_state["temperature_value"] = 0.4
     if "top_p_value" not in st.session_state:
@@ -390,7 +452,13 @@ def main() -> None:
         options=["Friendly", "Formal", "Concise"],
         key="response_style_choice",
     )
+    provider_choice = st.selectbox(
+        "LLM provider",
+        options=["OpenAI", "Gemini"],
+        key="provider_choice",
+    )
     with st.expander("Model settings (OpenAI)", expanded=False):
+        st.caption("Settings apply to both OpenAI and Gemini.")
         st.slider(
             "Temperature",
             min_value=0.0,
@@ -426,6 +494,7 @@ def main() -> None:
                 topic=topic,
                 study_goal=study_goal,
                 response_style=response_style,
+                llm_provider="gemini" if provider_choice == "Gemini" else "openai",
                 temperature=float(st.session_state["temperature_value"]),
                 top_p=float(st.session_state["top_p_value"]),
             )
@@ -446,9 +515,10 @@ def main() -> None:
                 stream_prompt = _build_study_plan_stream_prompt(profile, session_input, weak_summary)
                 st.markdown("### Study plan")
                 streamed_plan = st.write_stream(
-                    _stream_text_from_openai(
+                    _stream_text_with_provider(
                         stream_prompt,
                         fallback_plan,
+                        provider=session_input.llm_provider,
                         temperature=session_input.temperature,
                         top_p=session_input.top_p,
                     )
@@ -553,9 +623,10 @@ def main() -> None:
                         feedback=feedback,
                     )
                     streamed_recommendation = st.write_stream(
-                        _stream_text_from_openai(
+                        _stream_text_with_provider(
                             recommendation_prompt,
                             str(fallback_recommendation),
+                            provider=session_input.llm_provider,
                             temperature=session_input.temperature,
                             top_p=session_input.top_p,
                         )

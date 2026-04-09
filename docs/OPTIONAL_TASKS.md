@@ -26,8 +26,19 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
   - `studygraph/prompts/loader.py`
 
 ### Easy #3 — Let user choose model provider
-- **Status:** Not started
-- **Planned approach:** provider/model selector (OpenAI/Gemini) for selected text-generation nodes
+- **Status:** ✅ Implemented
+- **What was added:**
+  - UI selector: `LLM provider` with `OpenAI` and `Gemini`
+  - Selected provider is stored in session input and applied to:
+    - streamed study-plan generation
+    - streamed recommendation generation
+    - study material generation
+    - quiz generation
+  - Keeps fallback behavior when provider key is missing or API call fails
+- **Files:**
+  - `studygraph/ui/app.py`
+  - `studygraph/models.py`
+  - `studygraph/graph/workflow.py`
 
 ### Easy #4 — Add OpenAI settings (temperature/top-p)
 - **Status:** ✅ Implemented
