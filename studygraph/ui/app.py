@@ -16,6 +16,10 @@ from studygraph.graph import build_evaluation_graph, build_prepare_graph, build_
 from studygraph.memory import MemoryStore
 from studygraph.models import StudySessionInput, StudentProfile
 from studygraph.prompts import render_prompt
+from studygraph.usage import (
+    build_usage_record,
+    summarize_usage,
+)
 from studygraph.utils import call_with_retry
 
 
@@ -87,12 +91,49 @@ def _safe_ui_error(context: str) -> str:
     return f"{context}. Please try again."
 
 
+def _append_usage_record(record: dict | None) -> None:
+    if not record:
+        return
+    if "usage_records" not in st.session_state:
+        st.session_state["usage_records"] = []
+    st.session_state["usage_records"].append(record)
+
+
+def _approx_token_count(text: str) -> int:
+    # Lightweight approximation for providers/paths that do not return usage.
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return 0
+    return max(1, round(len(cleaned) / 4))
+
+
+def _append_estimated_stream_usage(
+    *,
+    provider: str,
+    call_type: str,
+    prompt_text: str,
+    completion_text: str,
+) -> None:
+    model = "gemini-1.5-flash" if provider == "gemini" else "gpt-4o-mini"
+    _append_usage_record(
+        build_usage_record(
+            provider=provider,
+            model=model,
+            call_type=call_type,
+            prompt_tokens=_approx_token_count(prompt_text),
+            completion_tokens=_approx_token_count(completion_text),
+            note="Estimated from streamed text length.",
+        )
+    )
+
+
 def _stream_text_from_openai(
     prompt: str,
     fallback_text: str,
     *,
     temperature: float = 0.4,
     top_p: float = 1.0,
+    call_type: str = "stream_text",
 ) -> Generator[str, None, None]:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -135,6 +176,7 @@ def _stream_text_from_gemini(
     *,
     temperature: float = 0.4,
     top_p: float = 1.0,
+    call_type: str = "stream_text",
 ) -> Generator[str, None, None]:
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -174,6 +216,7 @@ def _stream_text_with_provider(
     provider: str,
     temperature: float,
     top_p: float,
+    call_type: str,
 ) -> Generator[str, None, None]:
     if provider == "gemini":
         return _stream_text_from_gemini(
@@ -181,12 +224,14 @@ def _stream_text_with_provider(
             fallback_text,
             temperature=temperature,
             top_p=top_p,
+            call_type=call_type,
         )
     return _stream_text_from_openai(
         prompt,
         fallback_text,
         temperature=temperature,
         top_p=top_p,
+        call_type=call_type,
     )
 
 
@@ -612,6 +657,7 @@ def main() -> None:
             "current_quiz",
             "just_streamed_study_plan",
             "latest_recommendation",
+            "usage_records",
         ]:
             st.session_state.pop(key, None)
         st.session_state["active_profile_id"] = active_profile_id
@@ -727,8 +773,10 @@ def main() -> None:
             else:
                 st.session_state["current_session_input"] = session_input.model_dump()
                 st.session_state["current_quiz"] = []
+                st.session_state["usage_records"] = []
                 fallback_plan = result.get("study_plan", "")
                 fallback_material = result.get("study_material", "")
+                _append_usage_record(result.get("study_material_usage"))
                 weak_summary = store.weak_topics_summary_for_course(
                     active_profile_id, session_input.course, top_n=3
                 )
@@ -741,9 +789,17 @@ def main() -> None:
                         provider=session_input.llm_provider,
                         temperature=session_input.temperature,
                         top_p=session_input.top_p,
+                        call_type="study_plan_stream",
                     )
                 )
-                st.session_state["current_study_plan"] = streamed_plan or fallback_plan
+                final_plan = streamed_plan or fallback_plan
+                st.session_state["current_study_plan"] = final_plan
+                _append_estimated_stream_usage(
+                    provider=session_input.llm_provider,
+                    call_type="study_plan_stream",
+                    prompt_text=stream_prompt,
+                    completion_text=str(final_plan),
+                )
                 st.session_state["current_study_material"] = fallback_material
                 st.session_state["just_streamed_study_plan"] = True
                 st.success(render_prompt("ui.material_ready_success"))
@@ -790,6 +846,7 @@ def main() -> None:
                     st.error(quiz_result["error"])
                 else:
                     st.session_state["current_quiz"] = quiz_result.get("quiz_questions", [])
+                    _append_usage_record(quiz_result.get("quiz_usage"))
                     st.success(render_prompt("ui.quiz_ready_success"))
             except Exception:
                 st.error(_safe_ui_error("Failed to generate quiz"))
@@ -849,10 +906,16 @@ def main() -> None:
                             provider=session_input.llm_provider,
                             temperature=session_input.temperature,
                             top_p=session_input.top_p,
+                            call_type="recommendation_stream",
                         )
                     )
-                    st.session_state["latest_recommendation"] = (
-                        streamed_recommendation or fallback_recommendation
+                    final_recommendation = streamed_recommendation or fallback_recommendation
+                    st.session_state["latest_recommendation"] = final_recommendation
+                    _append_estimated_stream_usage(
+                        provider=session_input.llm_provider,
+                        call_type="recommendation_stream",
+                        prompt_text=recommendation_prompt,
+                        completion_text=str(final_recommendation),
                     )
                     weak_concepts = eval_result.get("weak_concepts", [])
                     st.markdown("### Knowledge Summary")
@@ -908,6 +971,37 @@ def main() -> None:
                 rows = _history_rows(list(reversed(sessions_in_course)))
                 if rows:
                     st.dataframe(rows, use_container_width=True)
+
+    usage_records = st.session_state.get("usage_records", [])
+    if usage_records:
+        usage_summary = summarize_usage(usage_records)
+        st.divider()
+        with st.expander("Token & Cost Summary (Current Session)", expanded=False):
+            st.caption("Costs are estimates and may vary by provider pricing updates.")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Prompt tokens", str(usage_summary["prompt_tokens"]))
+            c2.metric("Completion tokens", str(usage_summary["completion_tokens"]))
+            c3.metric("Total tokens", str(usage_summary["total_tokens"]))
+            c4.metric("Estimated cost (USD)", f"${usage_summary['estimated_cost_usd']:.6f}")
+            if usage_summary["calls_without_usage"] > 0:
+                st.caption(
+                    f"{usage_summary['calls_without_usage']} call(s) did not provide usage metadata."
+                )
+            rows = []
+            for rec in usage_records:
+                rows.append(
+                    {
+                        "Call": rec.get("call_type", ""),
+                        "Provider": rec.get("provider", ""),
+                        "Model": rec.get("model", ""),
+                        "Prompt": rec.get("prompt_tokens", 0),
+                        "Completion": rec.get("completion_tokens", 0),
+                        "Total": rec.get("total_tokens", 0),
+                        "Cost (USD est.)": rec.get("estimated_cost_usd"),
+                        "Note": rec.get("note", ""),
+                    }
+                )
+            st.dataframe(rows, use_container_width=True)
 
     _render_footer()
 

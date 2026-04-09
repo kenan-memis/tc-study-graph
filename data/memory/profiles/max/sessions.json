@@ -30,5 +30,31 @@
       "what is 1 + 7?"
     ],
     "created_at": "2026-04-08T20:21:39.951675+00:00"
+  },
+  {
+    "course": "Biology",
+    "topic": "Cell structure",
+    "score_percent": 0.0,
+    "weak_concepts": [
+      "what is the powerhouse of the cell?",
+      "which part of the cell contains the genetic material?",
+      "what is the function of the cell membrane?",
+      "which organelle is responsible for making proteins?",
+      "what structure gives plant cells their shape?"
+    ],
+    "created_at": "2026-04-09T15:59:22.079424+00:00"
+  },
+  {
+    "course": "History",
+    "topic": "French Revolution causes",
+    "score_percent": 0.0,
+    "weak_concepts": [
+      "what was one major cause of the french revolution?",
+      "which social class was heavily burdened by taxes before the french revolution?",
+      "what was the estates-general?",
+      "what idea influenced the french revolution by promoting equality and liberty?",
+      "what event marked the beginning of the french revolution?"
+    ],
+    "created_at": "2026-04-09T16:07:08.243603+00:00"
   }
 ]

@@ -80,6 +80,19 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
 
 ## Medium
 
+### Medium #1 — Calculate and display token usage and costs
+- **Status:** ✅ Implemented
+- **What was added:**
+  - Session-level token/cost tracking with per-call breakdown table
+  - Estimated costs for supported model/provider pairs
+  - UI section: `Token & Cost Summary (Current Session)`
+  - Graceful handling when provider usage metadata is unavailable
+- **Files:**
+  - `studygraph/usage.py`
+  - `studygraph/ui/app.py`
+  - `studygraph/graph/workflow.py`
+  - `tests/test_usage.py`
+
 ### Medium #2 — Add retry logic for agents
 - **Status:** ✅ Implemented
 - **What was added:**

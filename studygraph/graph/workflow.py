@@ -11,6 +11,7 @@ from openai import OpenAI
 from studygraph.memory import MemoryStore
 from studygraph.models import QuizQuestion, SessionRecord, StudySessionInput, StudentProfile
 from studygraph.prompts import render_prompt
+from studygraph.usage import build_usage_record
 from studygraph.utils import call_with_retry
 
 
@@ -21,6 +22,7 @@ class PrepareState(TypedDict, total=False):
     study_plan: str
     study_material: str
     quiz_questions: list[dict[str, Any]]
+    study_material_usage: dict[str, Any]
     error: str
 
 
@@ -29,6 +31,7 @@ class QuizState(TypedDict, total=False):
     session_input: dict[str, Any]
     profile: dict[str, Any]
     quiz_questions: list[dict[str, Any]]
+    quiz_usage: dict[str, Any]
     error: str
 
 
@@ -88,10 +91,10 @@ def _generate_quiz_with_openai(
     *,
     temperature: float = 0.4,
     top_p: float = 1.0,
-) -> list[QuizQuestion]:
+) -> tuple[list[QuizQuestion], dict[str, Any] | None]:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        return _fallback_quiz(topic)
+        return _fallback_quiz(topic), None
 
     client = OpenAI(api_key=api_key, timeout=10.0)
     prompt = render_prompt(
@@ -115,15 +118,28 @@ def _generate_quiz_with_openai(
         )
         content = resp.choices[0].message.content or ""
         data = json.loads(content)
+        usage_data = getattr(resp, "usage", None)
+        usage_record = (
+            build_usage_record(
+                provider="openai",
+                model="gpt-4o-mini",
+                call_type="quiz_generation",
+                prompt_tokens=getattr(usage_data, "prompt_tokens", None),
+                completion_tokens=getattr(usage_data, "completion_tokens", None),
+                total_tokens=getattr(usage_data, "total_tokens", None),
+            )
+            if usage_data is not None
+            else None
+        )
         raw_items = data.get("questions") if isinstance(data, dict) else data
         if not isinstance(raw_items, list):
-            return _fallback_quiz(topic)
+            return _fallback_quiz(topic), usage_record
         parsed: list[QuizQuestion] = []
         for item in raw_items[:5]:
             parsed.append(QuizQuestion.model_validate(item))
-        return parsed if len(parsed) == 5 else _fallback_quiz(topic)
+        return (parsed if len(parsed) == 5 else _fallback_quiz(topic)), usage_record
     except Exception:
-        return _fallback_quiz(topic)
+        return _fallback_quiz(topic), None
 
 
 def _extract_json_block(text: str) -> str:
@@ -146,10 +162,10 @@ def _generate_quiz_with_gemini(
     *,
     temperature: float = 0.4,
     top_p: float = 1.0,
-) -> list[QuizQuestion]:
+) -> tuple[list[QuizQuestion], dict[str, Any] | None]:
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        return _fallback_quiz(topic)
+        return _fallback_quiz(topic), None
 
     prompt = render_prompt(
         "generation.quiz_user_prompt_template",
@@ -182,28 +198,42 @@ def _generate_quiz_with_gemini(
                 return json.loads(resp.read().decode("utf-8"))
 
         body = call_with_retry(_request_body)
+        usage_meta = body.get("usageMetadata", {}) if isinstance(body, dict) else {}
+        usage_record = (
+            build_usage_record(
+                provider="gemini",
+                model="gemini-1.5-flash",
+                call_type="quiz_generation",
+                prompt_tokens=usage_meta.get("promptTokenCount"),
+                completion_tokens=usage_meta.get("candidatesTokenCount"),
+                total_tokens=usage_meta.get("totalTokenCount"),
+            )
+            if usage_meta
+            else None
+        )
         parts = body["candidates"][0]["content"]["parts"]
         text = "".join([p.get("text", "") for p in parts if isinstance(p, dict)])
         data = json.loads(_extract_json_block(text))
         raw_items = data.get("questions") if isinstance(data, dict) else data
         if not isinstance(raw_items, list):
-            return _fallback_quiz(topic)
+            return _fallback_quiz(topic), usage_record
         parsed: list[QuizQuestion] = []
         for item in raw_items[:5]:
             parsed.append(QuizQuestion.model_validate(item))
-        return parsed if len(parsed) == 5 else _fallback_quiz(topic)
+        return (parsed if len(parsed) == 5 else _fallback_quiz(topic)), usage_record
     except Exception:
-        return _fallback_quiz(topic)
+        return _fallback_quiz(topic), None
 
 
 def _build_material_with_openai(topic: str, course: str, level: str, language: str) -> str:
-    return _build_material_with_openai_styled(
+    material, _usage = _build_material_with_openai_styled(
         topic=topic,
         course=course,
         level=level,
         language=language,
         style_hint="Friendly",
     )
+    return material
 
 
 def _build_material_with_openai_styled(
@@ -215,7 +245,7 @@ def _build_material_with_openai_styled(
     *,
     temperature: float = 0.4,
     top_p: float = 1.0,
-) -> str:
+) -> tuple[str, dict[str, Any] | None]:
     api_key = os.getenv("OPENAI_API_KEY")
     fallback_material = render_prompt(
         "generation.material_fallback_template",
@@ -223,7 +253,7 @@ def _build_material_with_openai_styled(
         course=course,
     )
     if not api_key:
-        return fallback_material
+        return fallback_material, None
 
     client = OpenAI(api_key=api_key, timeout=10.0)
     prompt = render_prompt(
@@ -245,12 +275,29 @@ def _build_material_with_openai_styled(
             )
         )
         content = (resp.choices[0].message.content or "").strip()
-        return content or render_prompt(
-            "generation.material_generation_failure_template",
-            topic=topic,
+        usage_data = getattr(resp, "usage", None)
+        usage_record = (
+            build_usage_record(
+                provider="openai",
+                model="gpt-4o-mini",
+                call_type="material_generation",
+                prompt_tokens=getattr(usage_data, "prompt_tokens", None),
+                completion_tokens=getattr(usage_data, "completion_tokens", None),
+                total_tokens=getattr(usage_data, "total_tokens", None),
+            )
+            if usage_data is not None
+            else None
+        )
+        return (
+            content
+            or render_prompt(
+                "generation.material_generation_failure_template",
+                topic=topic,
+            ),
+            usage_record,
         )
     except Exception:
-        return fallback_material
+        return fallback_material, None
 
 
 def _build_material_with_gemini_styled(
@@ -262,7 +309,7 @@ def _build_material_with_gemini_styled(
     *,
     temperature: float = 0.4,
     top_p: float = 1.0,
-) -> str:
+) -> tuple[str, dict[str, Any] | None]:
     api_key = os.getenv("GEMINI_API_KEY")
     fallback_material = render_prompt(
         "generation.material_fallback_template",
@@ -270,7 +317,7 @@ def _build_material_with_gemini_styled(
         course=course,
     )
     if not api_key:
-        return fallback_material
+        return fallback_material, None
 
     prompt = render_prompt(
         "generation.material_user_prompt_template",
@@ -303,14 +350,31 @@ def _build_material_with_gemini_styled(
                 return json.loads(resp.read().decode("utf-8"))
 
         body = call_with_retry(_request_body)
+        usage_meta = body.get("usageMetadata", {}) if isinstance(body, dict) else {}
+        usage_record = (
+            build_usage_record(
+                provider="gemini",
+                model="gemini-1.5-flash",
+                call_type="material_generation",
+                prompt_tokens=usage_meta.get("promptTokenCount"),
+                completion_tokens=usage_meta.get("candidatesTokenCount"),
+                total_tokens=usage_meta.get("totalTokenCount"),
+            )
+            if usage_meta
+            else None
+        )
         parts = body["candidates"][0]["content"]["parts"]
         content = "".join([p.get("text", "") for p in parts if isinstance(p, dict)]).strip()
-        return content or render_prompt(
-            "generation.material_generation_failure_template",
-            topic=topic,
+        return (
+            content
+            or render_prompt(
+                "generation.material_generation_failure_template",
+                topic=topic,
+            ),
+            usage_record,
         )
     except Exception:
-        return fallback_material
+        return fallback_material, None
 
 
 def build_prepare_graph(store: MemoryStore):
@@ -340,8 +404,9 @@ def build_prepare_graph(store: MemoryStore):
     def build_material_node(state: PrepareState) -> PrepareState:
         profile = StudentProfile.model_validate(state["profile"])
         session = StudySessionInput.model_validate(state["session_input"])
+        usage: dict[str, Any] | None = None
         if session.llm_provider == "gemini":
-            material = _build_material_with_gemini_styled(
+            material, usage = _build_material_with_gemini_styled(
                 topic=session.topic,
                 course=session.course,
                 level=profile.education_level,
@@ -351,7 +416,7 @@ def build_prepare_graph(store: MemoryStore):
                 top_p=session.top_p,
             )
         else:
-            material = _build_material_with_openai_styled(
+            material, usage = _build_material_with_openai_styled(
                 topic=session.topic,
                 course=session.course,
                 level=profile.education_level,
@@ -360,7 +425,7 @@ def build_prepare_graph(store: MemoryStore):
                 temperature=session.temperature,
                 top_p=session.top_p,
             )
-        return {"study_material": material}
+        return {"study_material": material, "study_material_usage": usage or {}}
 
     graph = StateGraph(PrepareState)
     graph.add_node("load_profile", load_profile_node)
@@ -383,8 +448,9 @@ def build_quiz_graph(store: MemoryStore):
     def generate_quiz_node(state: QuizState) -> QuizState:
         profile = StudentProfile.model_validate(state["profile"])
         session = StudySessionInput.model_validate(state["session_input"])
+        usage: dict[str, Any] | None = None
         if session.llm_provider == "gemini":
-            questions = _generate_quiz_with_gemini(
+            questions, usage = _generate_quiz_with_gemini(
                 topic=session.topic,
                 course=session.course,
                 level=profile.education_level,
@@ -393,7 +459,7 @@ def build_quiz_graph(store: MemoryStore):
                 top_p=session.top_p,
             )
         else:
-            questions = _generate_quiz_with_openai(
+            questions, usage = _generate_quiz_with_openai(
                 topic=session.topic,
                 course=session.course,
                 level=profile.education_level,
@@ -401,7 +467,7 @@ def build_quiz_graph(store: MemoryStore):
                 temperature=session.temperature,
                 top_p=session.top_p,
             )
-        return {"quiz_questions": [q.model_dump() for q in questions]}
+        return {"quiz_questions": [q.model_dump() for q in questions], "quiz_usage": usage or {}}
 
     graph = StateGraph(QuizState)
     graph.add_node("load_profile", load_profile_node)
