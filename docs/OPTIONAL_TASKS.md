@@ -11,8 +11,19 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
 - **Planned output:** `sprint_3/` note with critique + applied improvements
 
 ### Easy #2 — Give the agent a personality
-- **Status:** Not started
-- **Planned approach:** UI selector (`Friendly`, `Formal`, `Concise`) injected into prompt templates
+- **Status:** ✅ Implemented
+- **What was added:**
+  - UI selector: `Response style` with `Friendly`, `Formal`, `Concise`
+  - Selected style is stored in session input and injected into:
+    - streamed study-plan prompt
+    - streamed recommendation prompt
+    - study material generation prompt
+- **Files:**
+  - `studygraph/ui/app.py`
+  - `studygraph/models.py`
+  - `studygraph/graph/workflow.py`
+  - `studygraph/prompts/prompts.yaml`
+  - `studygraph/prompts/loader.py`
 
 ### Easy #3 — Let user choose model provider
 - **Status:** Not started

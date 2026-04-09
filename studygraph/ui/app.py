@@ -83,6 +83,7 @@ def _build_study_plan_stream_prompt(
         course=session_input.course,
         topic=session_input.topic,
         study_goal=session_input.study_goal,
+        style_hint=session_input.response_style,
         weak_text=weak_text,
     )
 
@@ -100,6 +101,7 @@ def _build_recommendation_stream_prompt(
         education_level=profile.education_level,
         course=session_input.course,
         topic=session_input.topic,
+        style_hint=session_input.response_style,
         score_percent=score_percent,
         feedback_text=feedback_text,
     )
@@ -310,6 +312,8 @@ def main() -> None:
         st.session_state["topic_input"] = ""
     if "study_goal_choice" not in st.session_state:
         st.session_state["study_goal_choice"] = SELECT_PLACEHOLDER
+    if "response_style_choice" not in st.session_state:
+        st.session_state["response_style_choice"] = "Friendly"
 
     with st.expander("Interactive help: build a good study request", expanded=False):
         st.markdown(
@@ -319,17 +323,18 @@ def main() -> None:
             "- You can click an example below to auto-fill session fields."
         )
         presets = [
-            ("Math quick review", "Math", "", "Division", "Quick revision"),
-            ("Biology exam prep", "Biology", "", "Cell structure", "Exam preparation"),
-            ("History deep study", "History", "", "French Revolution causes", "Deep understanding"),
-            ("Custom course example", "Other…", "Economics", "Supply and demand", "Practice only"),
+            ("Math quick review", "Math", "", "Division", "Quick revision", "Friendly"),
+            ("Biology exam prep", "Biology", "", "Cell structure", "Exam preparation", "Formal"),
+            ("History deep study", "History", "", "French Revolution causes", "Deep understanding", "Concise"),
+            ("Custom course example", "Other…", "Economics", "Supply and demand", "Practice only", "Friendly"),
         ]
-        for label, c_choice, c_other, t, goal in presets:
+        for label, c_choice, c_other, t, goal, style in presets:
             if st.button(label, key=f"preset_{label}"):
                 st.session_state["course_choice"] = c_choice
                 st.session_state["course_other"] = c_other
                 st.session_state["topic_input"] = t
                 st.session_state["study_goal_choice"] = goal
+                st.session_state["response_style_choice"] = style
                 st.rerun()
 
     course_choice = st.selectbox(
@@ -369,6 +374,11 @@ def main() -> None:
         ],
         key="study_goal_choice",
     )
+    response_style = st.selectbox(
+        "Response style",
+        options=["Friendly", "Formal", "Concise"],
+        key="response_style_choice",
+    )
 
     if st.button("Generate plan and study material", type="primary"):
         try:
@@ -381,7 +391,12 @@ def main() -> None:
             if course_choice == "Other…" and not course:
                 st.error("Please enter a course name when you choose “Other…”")
                 st.stop()
-            session_input = StudySessionInput(course=course, topic=topic, study_goal=study_goal)
+            session_input = StudySessionInput(
+                course=course,
+                topic=topic,
+                study_goal=study_goal,
+                response_style=response_style,
+            )
             prepare_graph = build_prepare_graph(store)
             result = prepare_graph.invoke(
                 {"profile_id": active_profile_id, "session_input": session_input.model_dump()}

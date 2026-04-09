@@ -114,6 +114,22 @@ def _generate_quiz_with_openai(topic: str, course: str, level: str, language: st
 
 
 def _build_material_with_openai(topic: str, course: str, level: str, language: str) -> str:
+    return _build_material_with_openai_styled(
+        topic=topic,
+        course=course,
+        level=level,
+        language=language,
+        style_hint="Friendly",
+    )
+
+
+def _build_material_with_openai_styled(
+    topic: str,
+    course: str,
+    level: str,
+    language: str,
+    style_hint: str,
+) -> str:
     api_key = os.getenv("OPENAI_API_KEY")
     fallback_material = render_prompt(
         "generation.material_fallback_template",
@@ -130,6 +146,7 @@ def _build_material_with_openai(topic: str, course: str, level: str, language: s
         topic=topic,
         level=level,
         language=language,
+        style_hint=style_hint,
     )
     try:
         resp = client.chat.completions.create(
@@ -174,11 +191,12 @@ def build_prepare_graph(store: MemoryStore):
     def build_material_node(state: PrepareState) -> PrepareState:
         profile = StudentProfile.model_validate(state["profile"])
         session = StudySessionInput.model_validate(state["session_input"])
-        material = _build_material_with_openai(
+        material = _build_material_with_openai_styled(
             topic=session.topic,
             course=session.course,
             level=profile.education_level,
             language=profile.preferred_language,
+            style_hint=session.response_style,
         )
         return {"study_material": material}
 

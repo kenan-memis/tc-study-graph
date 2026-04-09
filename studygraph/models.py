@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 EducationLevel = Literal["primary", "middle", "high", "university_exam_prep"]
 DifficultyLevel = Literal["easy", "medium", "hard"]
 PaceLevel = Literal["slow", "balanced", "fast"]
+ResponseStyle = Literal["Friendly", "Formal", "Concise"]
 
 
 class StudentProfile(BaseModel):
@@ -28,8 +29,9 @@ class StudySessionInput(BaseModel):
     course: str = Field(min_length=1, max_length=80)
     topic: str = Field(min_length=1, max_length=800)
     study_goal: str = Field(default="quick revision", min_length=1, max_length=200)
+    response_style: ResponseStyle = "Friendly"
 
-    @field_validator("course", "topic", "study_goal")
+    @field_validator("course", "topic", "study_goal", "response_style")
     @classmethod
     def _strip_text(cls, value: str) -> str:
         return value.strip()
