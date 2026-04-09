@@ -76,6 +76,16 @@ def _save_app_settings(*, llm_provider: str, temperature: float, top_p: float) -
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def _provider_key_available(provider: str) -> bool:
+    if provider == "gemini":
+        return bool((os.getenv("GEMINI_API_KEY") or "").strip())
+    return bool((os.getenv("OPENAI_API_KEY") or "").strip())
+
+
+def _safe_ui_error(context: str) -> str:
+    return f"{context}. Please try again."
+
+
 def _stream_text_from_openai(
     prompt: str,
     fallback_text: str,
@@ -480,8 +490,8 @@ def main() -> None:
                 store.save_profile(new_id, profile)
                 st.success(f"Created profile: {new_id}")
                 st.rerun()
-            except Exception as exc:
-                st.error(f"Failed to create profile: {exc}")
+            except Exception:
+                st.error(_safe_ui_error("Failed to create profile"))
 
         if form_mode == "Edit selected profile" and selected_profile and st.button(
             "Update selected profile", type="primary"
@@ -511,8 +521,8 @@ def main() -> None:
                 )
                 store.save_profile(active_profile_id, profile)
                 st.success(f"Updated profile: {active_profile_id}")
-            except Exception as exc:
-                st.error(f"Failed to update profile: {exc}")
+            except Exception:
+                st.error(_safe_ui_error("Failed to update profile"))
         if form_mode == "Edit selected profile" and not selected_profile:
             st.info("Select a profile first to edit it.")
 
@@ -556,8 +566,16 @@ def main() -> None:
             )
             st.sidebar.success("Settings saved.")
             st.rerun()
-        except Exception as exc:
-            st.sidebar.error(f"Failed to save settings: {exc}")
+        except Exception:
+            st.sidebar.error(_safe_ui_error("Failed to save settings"))
+    active_provider_value = provider_label_options[gs_provider]
+    if _provider_key_available(active_provider_value):
+        st.sidebar.caption("API key status: ready")
+    else:
+        provider_name = "Gemini" if active_provider_value == "gemini" else "OpenAI"
+        st.sidebar.warning(
+            f"{provider_name} API key not found. The app will use built-in fallback outputs."
+        )
     st.sidebar.caption(
         "These settings are saved and used for all requests until you change them."
     )
@@ -723,8 +741,8 @@ def main() -> None:
                 st.session_state["current_study_material"] = fallback_material
                 st.session_state["just_streamed_study_plan"] = True
                 st.success(render_prompt("ui.material_ready_success"))
-        except Exception as exc:
-            st.error(f"Failed to prepare study session: {exc}")
+        except Exception:
+            st.error(_safe_ui_error("Failed to prepare study session"))
 
     if st.session_state.get("current_study_plan") and not st.session_state.get(
         "just_streamed_study_plan", False
@@ -767,8 +785,8 @@ def main() -> None:
                 else:
                     st.session_state["current_quiz"] = quiz_result.get("quiz_questions", [])
                     st.success(render_prompt("ui.quiz_ready_success"))
-            except Exception as exc:
-                st.error(f"Failed to generate quiz: {exc}")
+            except Exception:
+                st.error(_safe_ui_error("Failed to generate quiz"))
 
     quiz_questions = st.session_state.get("current_quiz", [])
     if quiz_questions:
@@ -843,8 +861,8 @@ def main() -> None:
                         f"- Score: {score_percent}%\n"
                         f"- Weak concepts detected: {len(weak_concepts)}"
                     )
-            except Exception as exc:
-                st.error(f"Failed to evaluate quiz: {exc}")
+            except Exception:
+                st.error(_safe_ui_error("Failed to evaluate quiz"))
 
     history = store.load_session_history(active_profile_id)
     st.divider()

@@ -7,8 +7,18 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
 ## Easy
 
 ### Easy #1 — Ask ChatGPT to critique usability/security/prompting
-- **Status:** Not started
-- **Planned output:** `sprint_3/` note with critique + applied improvements
+- **Status:** ✅ Implemented
+- **What was added:**
+  - Structured critique note with findings and actions:
+    - usability
+    - security/resilience
+    - prompting
+  - Applied improvements from critique:
+    - safer user-facing error messaging (no raw exception details)
+    - provider API-key readiness hint in `General Settings`
+- **Files:**
+  - `docs/EASY_1_CRITIQUE_USABILITY_SECURITY_PROMPTS.md`
+  - `studygraph/ui/app.py`
 
 ### Easy #2 — Give the agent a personality
 - **Status:** ✅ Implemented
