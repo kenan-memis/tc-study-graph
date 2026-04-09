@@ -22,6 +22,11 @@ from studygraph.usage import (
     summarize_usage,
 )
 from studygraph.utils import call_with_retry, trim_material_sections_from_study_plan
+from studygraph.utils.ui_errors import (
+    log_exception,
+    sanitize_graph_error_message,
+    user_facing_message,
+)
 
 
 load_dotenv()
@@ -100,10 +105,6 @@ def _provider_key_available(provider: str) -> bool:
     if provider == "gemini":
         return bool((os.getenv("GEMINI_API_KEY") or "").strip())
     return bool((os.getenv("OPENAI_API_KEY") or "").strip())
-
-
-def _safe_ui_error(context: str) -> str:
-    return f"{context}. Please try again."
 
 
 def _rate_limit_allow(action_id: str, cooldown_sec: float) -> bool:
@@ -620,8 +621,13 @@ def main() -> None:
                 store.save_profile(new_id, profile)
                 st.success(f"Created profile: {new_id}")
                 st.rerun()
-            except Exception:
-                st.error(_safe_ui_error("Failed to create profile"))
+            except Exception as exc:
+                log_exception("create profile", exc)
+                st.error(
+                    user_facing_message(
+                        exc, default=render_prompt("ui.error_profile_create")
+                    )
+                )
 
         if form_mode == "Edit selected profile" and selected_profile and st.button(
             "Update selected profile", type="primary"
@@ -651,8 +657,13 @@ def main() -> None:
                 )
                 store.save_profile(active_profile_id, profile)
                 st.success(f"Updated profile: {active_profile_id}")
-            except Exception:
-                st.error(_safe_ui_error("Failed to update profile"))
+            except Exception as exc:
+                log_exception("update profile", exc)
+                st.error(
+                    user_facing_message(
+                        exc, default=render_prompt("ui.error_profile_update")
+                    )
+                )
         if form_mode == "Edit selected profile" and not selected_profile:
             st.info("Select a profile first to edit it.")
 
@@ -696,8 +707,11 @@ def main() -> None:
             )
             st.sidebar.success("Settings saved.")
             st.rerun()
-        except Exception:
-            st.sidebar.error(_safe_ui_error("Failed to save settings"))
+        except Exception as exc:
+            log_exception("save app settings", exc)
+            st.sidebar.error(
+                user_facing_message(exc, default=render_prompt("ui.error_save_settings"))
+            )
     active_provider_value = provider_label_options[gs_provider]
     if _provider_key_available(active_provider_value):
         st.sidebar.caption("API key status: ready")
@@ -883,7 +897,12 @@ def main() -> None:
                 {"profile_id": active_profile_id, "session_input": session_input.model_dump()}
             )
             if result.get("error"):
-                st.error(result["error"])
+                st.error(
+                    sanitize_graph_error_message(
+                        result.get("error"),
+                        fallback=render_prompt("ui.error_graph_generic"),
+                    )
+                )
             else:
                 st.session_state["current_session_input"] = session_input.model_dump()
                 st.session_state["current_quiz"] = []
@@ -929,8 +948,13 @@ def main() -> None:
                 )
                 st.session_state["just_streamed_study_plan"] = True
                 st.success(render_prompt("ui.material_ready_success"))
-        except Exception:
-            st.error(_safe_ui_error("Failed to prepare study session"))
+        except Exception as exc:
+            log_exception("prepare study session", exc)
+            st.error(
+                user_facing_message(
+                    exc, default=render_prompt("ui.error_prepare_session")
+                )
+            )
         finally:
             st.session_state["is_generating"] = False
 
@@ -1029,8 +1053,13 @@ def main() -> None:
                     )
                     store.append_feedback_record(active_profile_id, record)
                     st.success("Feedback saved. Next generations will adapt to it.")
-                except Exception:
-                    st.error(_safe_ui_error("Failed to save feedback"))
+                except Exception as exc:
+                    log_exception("save feedback", exc)
+                    st.error(
+                        user_facing_message(
+                            exc, default=render_prompt("ui.error_save_feedback")
+                        )
+                    )
 
     if (
         not is_generating
@@ -1049,7 +1078,12 @@ def main() -> None:
                     }
                 )
                 if quiz_result.get("error"):
-                    st.error(quiz_result["error"])
+                    st.error(
+                        sanitize_graph_error_message(
+                            quiz_result.get("error"),
+                            fallback=render_prompt("ui.error_graph_generic"),
+                        )
+                    )
                 else:
                     st.session_state["current_quiz"] = quiz_result.get("quiz_questions", [])
                     _append_usage_record(quiz_result.get("quiz_usage"))
@@ -1057,8 +1091,13 @@ def main() -> None:
                         quiz_result.get("quiz_cache_hit", False)
                     )
                     st.success(render_prompt("ui.quiz_ready_success"))
-            except Exception:
-                st.error(_safe_ui_error("Failed to generate quiz"))
+            except Exception as exc:
+                log_exception("generate quiz", exc)
+                st.error(
+                    user_facing_message(
+                        exc, default=render_prompt("ui.error_generate_quiz")
+                    )
+                )
 
     quiz_questions = st.session_state.get("current_quiz", []) if not is_generating else []
     if quiz_questions:
@@ -1087,7 +1126,12 @@ def main() -> None:
                     }
                 )
                 if eval_result.get("error"):
-                    st.error(eval_result["error"])
+                    st.error(
+                        sanitize_graph_error_message(
+                            eval_result.get("error"),
+                            fallback=render_prompt("ui.error_graph_generic"),
+                        )
+                    )
                 else:
                     st.markdown("### Results")
                     score_percent = float(eval_result.get("score_percent", 0))
@@ -1141,8 +1185,13 @@ def main() -> None:
                         f"- Score: {score_percent}%\n"
                         f"- Weak concepts detected: {len(weak_concepts)}"
                     )
-            except Exception:
-                st.error(_safe_ui_error("Failed to evaluate quiz"))
+            except Exception as exc:
+                log_exception("evaluate quiz", exc)
+                st.error(
+                    user_facing_message(
+                        exc, default=render_prompt("ui.error_evaluate_quiz")
+                    )
+                )
 
     if is_generating:
         st.caption("Generating new session output. History and analytics will appear after completion.")
