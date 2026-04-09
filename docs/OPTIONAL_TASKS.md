@@ -197,5 +197,16 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
 
 ## Hard
 
-Not started.
+### Hard #7 — Deploy the app to the cloud with proper scaling
+- **Status:** ✅ Implemented
+- **Production URL:** [https://study-graph-1018125388710.europe-west10.run.app/](https://study-graph-1018125388710.europe-west10.run.app/)
+- **What was added:**
+  - Production-oriented **`Dockerfile`** (`python:3.13-slim`, `uv sync --frozen --no-dev`)
+  - **`docker-entrypoint.sh`** — Streamlit on `0.0.0.0` and `$PORT` (default `8080`) for Cloud Run
+  - **`.dockerignore`** — excludes `.venv`, tests, docs, local `data/memory`, `.env`
+  - Step-by-step guide: **`docs/DEPLOY_GCP.md`** (build, push to Artifact Registry, `gcloud run deploy`, secrets, `linux/amd64` builds for Cloud Run)
+- **Notes:**
+  - Ephemeral disk: profile/session JSON under `data/memory/` does not persist across Cloud Run instance cycles unless you add external storage
+  - Cloud Run service account needs **`roles/secretmanager.secretAccessor`** on the referenced secrets (or project-level) when using `--set-secrets`
+
 
