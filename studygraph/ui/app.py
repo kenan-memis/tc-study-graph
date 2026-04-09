@@ -832,6 +832,9 @@ def main() -> None:
                     completion_text=str(final_plan),
                 )
                 st.session_state["current_study_material"] = fallback_material
+                st.session_state["current_material_cache_hit"] = bool(
+                    result.get("material_cache_hit", False)
+                )
                 st.session_state["just_streamed_study_plan"] = True
                 if fallback_material:
                     material_slot.write(fallback_material)
@@ -909,6 +912,9 @@ def main() -> None:
                 else:
                     st.session_state["current_quiz"] = quiz_result.get("quiz_questions", [])
                     _append_usage_record(quiz_result.get("quiz_usage"))
+                    st.session_state["current_quiz_cache_hit"] = bool(
+                        quiz_result.get("quiz_cache_hit", False)
+                    )
                     st.success(render_prompt("ui.quiz_ready_success"))
             except Exception:
                 st.error(_safe_ui_error("Failed to generate quiz"))

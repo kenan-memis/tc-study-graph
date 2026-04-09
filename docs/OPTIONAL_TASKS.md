@@ -127,6 +127,20 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
   - `studygraph/prompts/loader.py`
   - `tests/test_external_knowledge_tool.py`
 
+### Medium #6 — Implement a caching mechanism for frequent responses
+- **Status:** ✅ Implemented
+- **What was added:**
+  - Persistent file-based response cache for repeated generation requests
+  - Cache keys include topic/course/provider/settings/profile-level context
+  - Cache applied to:
+    - study material generation
+    - quiz generation
+  - Cache hits skip provider calls and return stored outputs immediately
+- **Files:**
+  - `studygraph/cache.py`
+  - `studygraph/graph/workflow.py`
+  - `tests/test_cache.py`
+
 ---
 
 ## Hard

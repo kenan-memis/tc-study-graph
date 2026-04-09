@@ -8,6 +8,7 @@ from typing import Any, TypedDict
 from langgraph.graph import END, START, StateGraph
 from openai import OpenAI
 
+from studygraph.cache import ResponseCache
 from studygraph.memory import MemoryStore
 from studygraph.models import QuizQuestion, SessionRecord, StudySessionInput, StudentProfile
 from studygraph.prompts import render_prompt
@@ -24,6 +25,7 @@ class PrepareState(TypedDict, total=False):
     study_material: str
     quiz_questions: list[dict[str, Any]]
     study_material_usage: dict[str, Any]
+    material_cache_hit: bool
     external_knowledge: dict[str, Any]
     error: str
 
@@ -34,6 +36,7 @@ class QuizState(TypedDict, total=False):
     profile: dict[str, Any]
     quiz_questions: list[dict[str, Any]]
     quiz_usage: dict[str, Any]
+    quiz_cache_hit: bool
     error: str
 
 
@@ -48,6 +51,14 @@ class EvaluateState(TypedDict, total=False):
     feedback: list[str]
     recommendation: str
     error: str
+
+
+def _norm_text(value: str) -> str:
+    return (value or "").strip().lower()
+
+
+def _norm_float(value: float, *, digits: int = 3) -> float:
+    return round(float(value), digits)
 
 
 def _material_fallback_with_external(
@@ -422,6 +433,8 @@ def _build_material_with_gemini_styled(
 
 
 def build_prepare_graph(store: MemoryStore):
+    cache = ResponseCache()
+
     def load_profile_node(state: PrepareState) -> PrepareState:
         profile_id = state["profile_id"]
         profile = store.load_profile(profile_id)
@@ -448,6 +461,30 @@ def build_prepare_graph(store: MemoryStore):
     def build_material_node(state: PrepareState) -> PrepareState:
         profile = StudentProfile.model_validate(state["profile"])
         session = StudySessionInput.model_validate(state["session_input"])
+        cache_payload = {
+            "kind": "material",
+            "topic": _norm_text(session.topic),
+            "course": _norm_text(session.course),
+            "level": _norm_text(profile.education_level),
+            "language": _norm_text(profile.preferred_language),
+            "style": _norm_text(session.response_style),
+            "provider": _norm_text(session.llm_provider),
+            "temperature": _norm_float(session.temperature),
+            "top_p": _norm_float(session.top_p),
+        }
+        cached = cache.get(cache_payload)
+        if cached is not None:
+            return {
+                "study_material": str(cached.get("study_material", "")),
+                "study_material_usage": {},
+                "material_cache_hit": True,
+                "external_knowledge": (
+                    cached.get("external_knowledge")
+                    if isinstance(cached.get("external_knowledge"), dict)
+                    else {}
+                ),
+            }
+
         usage: dict[str, Any] | None = None
         ext = fetch_wikipedia_summary(session.topic)
         external_context = (
@@ -480,11 +517,20 @@ def build_prepare_graph(store: MemoryStore):
                 temperature=session.temperature,
                 top_p=session.top_p,
             )
-        return {
+        output = {
             "study_material": material,
             "study_material_usage": usage or {},
+            "material_cache_hit": False,
             "external_knowledge": ext,
         }
+        cache.set(
+            cache_payload,
+            {
+                "study_material": material,
+                "external_knowledge": ext if isinstance(ext, dict) else {},
+            },
+        )
+        return output
 
     graph = StateGraph(PrepareState)
     graph.add_node("load_profile", load_profile_node)
@@ -498,6 +544,8 @@ def build_prepare_graph(store: MemoryStore):
 
 
 def build_quiz_graph(store: MemoryStore):
+    cache = ResponseCache()
+
     def load_profile_node(state: QuizState) -> QuizState:
         profile = store.load_profile(state["profile_id"])
         if profile is None:
@@ -507,6 +555,24 @@ def build_quiz_graph(store: MemoryStore):
     def generate_quiz_node(state: QuizState) -> QuizState:
         profile = StudentProfile.model_validate(state["profile"])
         session = StudySessionInput.model_validate(state["session_input"])
+        cache_payload = {
+            "kind": "quiz",
+            "topic": _norm_text(session.topic),
+            "course": _norm_text(session.course),
+            "level": _norm_text(profile.education_level),
+            "language": _norm_text(profile.preferred_language),
+            "provider": _norm_text(session.llm_provider),
+            "temperature": _norm_float(session.temperature),
+            "top_p": _norm_float(session.top_p),
+        }
+        cached = cache.get(cache_payload)
+        if cached is not None and isinstance(cached.get("quiz_questions"), list):
+            return {
+                "quiz_questions": cached.get("quiz_questions", []),
+                "quiz_usage": {},
+                "quiz_cache_hit": True,
+            }
+
         usage: dict[str, Any] | None = None
         if session.llm_provider == "gemini":
             questions, usage = _generate_quiz_with_gemini(
@@ -526,7 +592,9 @@ def build_quiz_graph(store: MemoryStore):
                 temperature=session.temperature,
                 top_p=session.top_p,
             )
-        return {"quiz_questions": [q.model_dump() for q in questions], "quiz_usage": usage or {}}
+        dumped = [q.model_dump() for q in questions]
+        cache.set(cache_payload, {"quiz_questions": dumped})
+        return {"quiz_questions": dumped, "quiz_usage": usage or {}, "quiz_cache_hit": False}
 
     graph = StateGraph(QuizState)
     graph.add_node("load_profile", load_profile_node)
