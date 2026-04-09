@@ -4,8 +4,8 @@ from typing import Any
 
 # Estimated USD per 1M tokens (can be updated anytime).
 MODEL_PRICING_PER_1M: dict[tuple[str, str], tuple[float, float]] = {
-    ("openai", "gpt-4o-mini"): (0.15, 0.60),
-    ("gemini", "gemini-1.5-flash"): (0.075, 0.30),
+    ("openai", "gpt-5.2"): (0.15, 0.60),
+    ("gemini", "gemini-2.5-flash"): (0.075, 0.30),
 }
 
 

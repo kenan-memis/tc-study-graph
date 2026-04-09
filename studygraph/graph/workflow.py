@@ -108,7 +108,7 @@ def _generate_quiz_with_openai(
     try:
         resp = call_with_retry(
             lambda: client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-5.2",
                 temperature=temperature,
                 top_p=top_p,
                 messages=[{"role": "user", "content": prompt}],
@@ -122,7 +122,7 @@ def _generate_quiz_with_openai(
         usage_record = (
             build_usage_record(
                 provider="openai",
-                model="gpt-4o-mini",
+                model="gpt-5.2",
                 call_type="quiz_generation",
                 prompt_tokens=getattr(usage_data, "prompt_tokens", None),
                 completion_tokens=getattr(usage_data, "completion_tokens", None),
@@ -176,7 +176,7 @@ def _generate_quiz_with_gemini(
     )
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-1.5-flash:generateContent?key={api_key}"
+        f"gemini-2.5-flash:generateContent?key={api_key}"
     )
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -202,7 +202,7 @@ def _generate_quiz_with_gemini(
         usage_record = (
             build_usage_record(
                 provider="gemini",
-                model="gemini-1.5-flash",
+                model="gemini-2.5-flash",
                 call_type="quiz_generation",
                 prompt_tokens=usage_meta.get("promptTokenCount"),
                 completion_tokens=usage_meta.get("candidatesTokenCount"),
@@ -267,7 +267,7 @@ def _build_material_with_openai_styled(
     try:
         resp = call_with_retry(
             lambda: client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-5.2",
                 temperature=temperature,
                 top_p=top_p,
                 messages=[{"role": "user", "content": prompt}],
@@ -279,7 +279,7 @@ def _build_material_with_openai_styled(
         usage_record = (
             build_usage_record(
                 provider="openai",
-                model="gpt-4o-mini",
+                model="gpt-5.2",
                 call_type="material_generation",
                 prompt_tokens=getattr(usage_data, "prompt_tokens", None),
                 completion_tokens=getattr(usage_data, "completion_tokens", None),
@@ -329,7 +329,7 @@ def _build_material_with_gemini_styled(
     )
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-1.5-flash:generateContent?key={api_key}"
+        f"gemini-2.5-flash:generateContent?key={api_key}"
     )
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -354,7 +354,7 @@ def _build_material_with_gemini_styled(
         usage_record = (
             build_usage_record(
                 provider="gemini",
-                model="gemini-1.5-flash",
+                model="gemini-2.5-flash",
                 call_type="material_generation",
                 prompt_tokens=usage_meta.get("promptTokenCount"),
                 completion_tokens=usage_meta.get("candidatesTokenCount"),

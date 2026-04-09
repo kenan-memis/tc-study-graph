@@ -56,5 +56,18 @@
       "what event marked the beginning of the french revolution?"
     ],
     "created_at": "2026-04-09T16:07:08.243603+00:00"
+  },
+  {
+    "course": "Chemistry",
+    "topic": "Bonding",
+    "score_percent": 0.0,
+    "weak_concepts": [
+      "what is the bond called when two atoms share electrons?",
+      "which type of bond occurs when one atom gives up an electron to another atom?",
+      "what type of bond is found in metals, where electrons are shared among many atoms?",
+      "which bond is typically the strongest?",
+      "what is a hydrogen bond?"
+    ],
+    "created_at": "2026-04-09T16:15:42.986658+00:00"
   }
 ]

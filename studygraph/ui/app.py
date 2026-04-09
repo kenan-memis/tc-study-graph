@@ -114,7 +114,7 @@ def _append_estimated_stream_usage(
     prompt_text: str,
     completion_text: str,
 ) -> None:
-    model = "gemini-1.5-flash" if provider == "gemini" else "gpt-4o-mini"
+    model = "gemini-2.5-flash" if provider == "gemini" else "gpt-5.2"
     _append_usage_record(
         build_usage_record(
             provider=provider,
@@ -145,7 +145,7 @@ def _stream_text_from_openai(
         system_prompt = render_prompt("streaming.system_coach")
         stream = call_with_retry(
             lambda: client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-5.2",
                 messages=[
                     {
                         "role": "system",
@@ -184,7 +184,7 @@ def _stream_text_from_gemini(
         return
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-1.5-flash:generateContent?key={api_key}"
+        f"gemini-2.5-flash:generateContent?key={api_key}"
     )
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
