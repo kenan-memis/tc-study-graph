@@ -1,206 +1,4 @@
 {
-  "56003b8f3c47396ba72297ea80b66625f800602ec314b9557714b05c3e5a6772": {
-    "study_material": "Core concept (Math / Algebra):\nAlgebra: Algebra is a branch of mathematics that deals with abstract systems, known as algebraic structures, and the manipulation of expressions within those systems. It is a generalization of arithmetic that introduces variables and algebraic operations other than the standard arithmetic operations, such as addition and multiplication.\n\nKey points:\n- Identify the main definition and explain it in your own words.\n- Extract 3 key facts/rules and connect each one to a practical example.\n- Compare this concept with a similar concept to avoid confusion.\n\nWorked mini-example:\n- Build one short scenario and solve/explain it step by step.\n- Verify your answer by checking units, assumptions, or definitions.\n\nCommon mistakes:\n- Memorizing terms without understanding relationships.\n- Skipping why/how explanations and focusing only on final answers.\n\nReference: https://en.wikipedia.org/wiki/Algebra",
-    "external_knowledge": {
-      "success": true,
-      "title": "Algebra",
-      "summary": "Algebra is a branch of mathematics that deals with abstract systems, known as algebraic structures, and the manipulation of expressions within those systems. It is a generalization of arithmetic that introduces variables and algebraic operations other than the standard arithmetic operations, such as addition and multiplication.",
-      "source_url": "https://en.wikipedia.org/wiki/Algebra"
-    }
-  },
-  "e0ff58134d3a67de81a6e2d9819e334de1cf9ab7fe6685f2df288bbbdbc98413": {
-    "quiz_questions": [
-      {
-        "question": "What is the best summary of Algebra?",
-        "options": [
-          "A core concept",
-          "An unrelated topic",
-          "A sports rule",
-          "A random city"
-        ],
-        "correct_answer": "A core concept",
-        "explanation": "Algebra should be understood through its core concepts and definitions."
-      },
-      {
-        "question": "Which approach helps learn Algebra best?",
-        "options": [
-          "Active recall",
-          "Never practicing",
-          "Ignoring mistakes",
-          "Skipping feedback"
-        ],
-        "correct_answer": "Active recall",
-        "explanation": "Active recall and spaced practice are reliable study methods."
-      },
-      {
-        "question": "What should you do after a wrong answer?",
-        "options": [
-          "Review the mistake",
-          "Ignore it",
-          "Memorize blindly",
-          "Stop practicing"
-        ],
-        "correct_answer": "Review the mistake",
-        "explanation": "Mistake review is the fastest way to improve weak concepts."
-      },
-      {
-        "question": "What is a good exam strategy?",
-        "options": [
-          "Practice regularly",
-          "Cram once",
-          "Skip hard topics",
-          "Avoid testing"
-        ],
-        "correct_answer": "Practice regularly",
-        "explanation": "Frequent short practice sessions improve retention."
-      },
-      {
-        "question": "What data is useful for personalized study?",
-        "options": [
-          "Past weak topics",
-          "Random guesses",
-          "None",
-          "Only study date"
-        ],
-        "correct_answer": "Past weak topics",
-        "explanation": "Weak-topic history helps adapt future study recommendations."
-      }
-    ]
-  },
-  "e09b46878e4404e84ea16457101eddca8cf9ab8e1f2a3e1a6641e142f0e0b7b4": {
-    "study_material": "Core concept (Biology / Photosynthesis):\nPhotosynthesis: Photosynthesis is a system of biological processes by which photopigment-bearing autotrophic organisms, such as most plants, algae and cyanobacteria, convert light energy — typically from sunlight — into the chemical energy necessary to fuel their metabolism. The term photosynthesis usually refers to oxygenic photosynthesis, a process that releases oxygen as a byproduct of water splitting. Photosynthetic organisms store the converted chemical energy within the bonds of intracellular organic compounds, typically carbohydrates like sugars, starches, phytoglycogen and cellulose. When needing to use this stored energy, an organism's cells then metabolize the organic compounds through cellular re...\n\nKey points:\n- Identify the main definition and explain it in your own words.\n- Extract 3 key facts/rules and connect each one to a practical example.\n- Compare this concept with a similar concept to avoid confusion.\n\nWorked mini-example:\n- Build one short scenario and solve/explain it step by step.\n- Verify your answer by checking units, assumptions, or definitions.\n\nCommon mistakes:\n- Memorizing terms without understanding relationships.\n- Skipping why/how explanations and focusing only on final answers.\n\nReference: https://en.wikipedia.org/wiki/Photosynthesis",
-    "external_knowledge": {
-      "success": true,
-      "title": "Photosynthesis",
-      "summary": "Photosynthesis is a system of biological processes by which photopigment-bearing autotrophic organisms, such as most plants, algae and cyanobacteria, convert light energy — typically from sunlight — into the chemical energy necessary to fuel their metabolism. The term photosynthesis usually refers to oxygenic photosynthesis, a process that releases oxygen as a byproduct of water splitting. Photosynthetic organisms store the converted chemical energy within the bonds of intracellular organic compounds, typically carbohydrates like sugars, starches, phytoglycogen and cellulose. When needing to use this stored energy, an organism's cells then metabolize the organic compounds through cellular re...",
-      "source_url": "https://en.wikipedia.org/wiki/Photosynthesis"
-    }
-  },
-  "e0d62d25ec25af1d643b961ff10d8b2c92a4b151570046c47dfbe5f8541201b9": {
-    "quiz_questions": [
-      {
-        "question": "What is the best summary of Photosynthesis?",
-        "options": [
-          "A core concept",
-          "An unrelated topic",
-          "A sports rule",
-          "A random city"
-        ],
-        "correct_answer": "A core concept",
-        "explanation": "Photosynthesis should be understood through its core concepts and definitions."
-      },
-      {
-        "question": "Which approach helps learn Photosynthesis best?",
-        "options": [
-          "Active recall",
-          "Never practicing",
-          "Ignoring mistakes",
-          "Skipping feedback"
-        ],
-        "correct_answer": "Active recall",
-        "explanation": "Active recall and spaced practice are reliable study methods."
-      },
-      {
-        "question": "What should you do after a wrong answer?",
-        "options": [
-          "Review the mistake",
-          "Ignore it",
-          "Memorize blindly",
-          "Stop practicing"
-        ],
-        "correct_answer": "Review the mistake",
-        "explanation": "Mistake review is the fastest way to improve weak concepts."
-      },
-      {
-        "question": "What is a good exam strategy?",
-        "options": [
-          "Practice regularly",
-          "Cram once",
-          "Skip hard topics",
-          "Avoid testing"
-        ],
-        "correct_answer": "Practice regularly",
-        "explanation": "Frequent short practice sessions improve retention."
-      },
-      {
-        "question": "What data is useful for personalized study?",
-        "options": [
-          "Past weak topics",
-          "Random guesses",
-          "None",
-          "Only study date"
-        ],
-        "correct_answer": "Past weak topics",
-        "explanation": "Weak-topic history helps adapt future study recommendations."
-      }
-    ]
-  },
-  "ca5f9d0402d7de60cfffbf12717f42f5d1197e9169cd3610de4f74bc77c5fc25": {
-    "study_material": "Topic summary for French Revolution causes (History):\n- Core definition and why it matters.\n- 2-3 key rules/formulas.\n- One short example with explanation.\n- Common mistakes to avoid.",
-    "external_knowledge": {
-      "success": false,
-      "error": "No summary returned."
-    }
-  },
-  "17e085cd611c0e36cd5503f0d00eb63f181cee8bbe5ab07a087c7a3fcd99d004": {
-    "quiz_questions": [
-      {
-        "question": "What is the best summary of French Revolution causes?",
-        "options": [
-          "A core concept",
-          "An unrelated topic",
-          "A sports rule",
-          "A random city"
-        ],
-        "correct_answer": "A core concept",
-        "explanation": "French Revolution causes should be understood through its core concepts and definitions."
-      },
-      {
-        "question": "Which approach helps learn French Revolution causes best?",
-        "options": [
-          "Active recall",
-          "Never practicing",
-          "Ignoring mistakes",
-          "Skipping feedback"
-        ],
-        "correct_answer": "Active recall",
-        "explanation": "Active recall and spaced practice are reliable study methods."
-      },
-      {
-        "question": "What should you do after a wrong answer?",
-        "options": [
-          "Review the mistake",
-          "Ignore it",
-          "Memorize blindly",
-          "Stop practicing"
-        ],
-        "correct_answer": "Review the mistake",
-        "explanation": "Mistake review is the fastest way to improve weak concepts."
-      },
-      {
-        "question": "What is a good exam strategy?",
-        "options": [
-          "Practice regularly",
-          "Cram once",
-          "Skip hard topics",
-          "Avoid testing"
-        ],
-        "correct_answer": "Practice regularly",
-        "explanation": "Frequent short practice sessions improve retention."
-      },
-      {
-        "question": "What data is useful for personalized study?",
-        "options": [
-          "Past weak topics",
-          "Random guesses",
-          "None",
-          "Only study date"
-        ],
-        "correct_answer": "Past weak topics",
-        "explanation": "Weak-topic history helps adapt future study recommendations."
-      }
-    ]
-  },
   "1cb99aa19408b73553f9555196d128e985cbd1d92ed43345ae847d2a78e202bb": {
     "study_material": "Core concept (Math / Algebra):\nAlgebra: Algebra is a branch of mathematics that deals with abstract systems, known as algebraic structures, and the manipulation of expressions within those systems. It is a generalization of arithmetic that introduces variables and algebraic operations other than the standard arithmetic operations, such as addition and multiplication.\n\nKey points:\n- Identify the main definition and explain it in your own words.\n- Extract 3 key facts/rules and connect each one to a practical example.\n- Compare this concept with a similar concept to avoid confusion.\n\nWorked mini-example:\n- Build one short scenario and solve/explain it step by step.\n- Verify your answer by checking units, assumptions, or definitions.\n\nCommon mistakes:\n- Memorizing terms without understanding relationships.\n- Skipping why/how explanations and focusing only on final answers.\n\nReference: https://en.wikipedia.org/wiki/Algebra",
     "external_knowledge": {
@@ -269,7 +67,7 @@
       }
     ]
   },
-  "06c48216c867e3e89c88d2d332bb9c64b23ae37197cb58a01a1c5c77b4b52f2c": {
+  "7f75ab239d9a3a35b5e63add2ef98e70af0d12b71f40fe390a52adb13c153f21": {
     "study_material": "Core concept (Math / Division):\nDivision: Division may refer to:\n\nKey points:\n- Identify the main definition and explain it in your own words.\n- Extract 3 key facts/rules and connect each one to a practical example.\n- Compare this concept with a similar concept to avoid confusion.\n\nWorked mini-example:\n- Build one short scenario and solve/explain it step by step.\n- Verify your answer by checking units, assumptions, or definitions.\n\nCommon mistakes:\n- Memorizing terms without understanding relationships.\n- Skipping why/how explanations and focusing only on final answers.\n\nReference: https://en.wikipedia.org/wiki/Division",
     "external_knowledge": {
       "success": true,
@@ -278,10 +76,19 @@
       "source_url": "https://en.wikipedia.org/wiki/Division"
     }
   },
-  "a3bf98bc4a4ff71de5dc659d5ca4af6d37fb076c8cdd3cf4ec1042794946d42e": {
+  "4c6935777244f2ee181afa95f04d6179f2c2f588088fb22c1f4271a792143219": {
+    "study_material": "Core concept (Biology / Cell structure):\nCell structure: Cell structure may refer to:Cell (biology)#Anatomy\nAn organelle, or the layout of organelles of the biological cell itself\nThe structure of a covert cell, often involved in underground resistance, organised crime, terrorism or any group requiring stealth in its operations\nIn mathematics, the structure of a cell complex\n\nKey points:\n- Identify the main definition and explain it in your own words.\n- Extract 3 key facts/rules and connect each one to a practical example.\n- Compare this concept with a similar concept to avoid confusion.\n\nWorked mini-example:\n- Build one short scenario and solve/explain it step by step.\n- Verify your answer by checking units, assumptions, or definitions.\n\nCommon mistakes:\n- Memorizing terms without understanding relationships.\n- Skipping why/how explanations and focusing only on final answers.\n\nReference: https://en.wikipedia.org/wiki/Cell_structure",
+    "external_knowledge": {
+      "success": true,
+      "title": "Cell structure",
+      "summary": "Cell structure may refer to:Cell (biology)#Anatomy\nAn organelle, or the layout of organelles of the biological cell itself\nThe structure of a covert cell, often involved in underground resistance, organised crime, terrorism or any group requiring stealth in its operations\nIn mathematics, the structure of a cell complex",
+      "source_url": "https://en.wikipedia.org/wiki/Cell_structure"
+    }
+  },
+  "2ec9bacc17cb3e7f75cdf1e3c36b5c03f923e6efe5a2cb6e664c4ed0c19537eb": {
     "quiz_questions": [
       {
-        "question": "What is the best summary of Division?",
+        "question": "What is the best summary of Cell structure?",
         "options": [
           "A core concept",
           "An unrelated topic",
@@ -289,10 +96,10 @@
           "A random city"
         ],
         "correct_answer": "A core concept",
-        "explanation": "Division should be understood through its core concepts and definitions."
+        "explanation": "Cell structure should be understood through its core concepts and definitions."
       },
       {
-        "question": "Which approach helps learn Division best?",
+        "question": "Which approach helps learn Cell structure best?",
         "options": [
           "Active recall",
           "Never practicing",
@@ -337,102 +144,7 @@
       }
     ]
   },
-  "55c7e2967822a05a3e4d7e16204b2a67505b0c4f94ad03ebf263f950e91a2b42": {
-    "study_material": "Core concept (Biology / Photosynthesis):\nPhotosynthesis: Photosynthesis is a system of biological processes by which photopigment-bearing autotrophic organisms, such as most plants, algae and cyanobacteria, convert light energy — typically from sunlight — into the chemical energy necessary to fuel their metabolism. The term photosynthesis usually refers to oxygenic photosynthesis, a process that releases oxygen as a byproduct of water splitting. Photosynthetic organisms store the converted chemical energy within the bonds of intracellular organic compounds, typically carbohydrates like sugars, starches, phytoglycogen and cellulose. When needing to use this stored energy, an organism's cells then metabolize the organic compounds through cellular re...\n\nKey points:\n- Identify the main definition and explain it in your own words.\n- Extract 3 key facts/rules and connect each one to a practical example.\n- Compare this concept with a similar concept to avoid confusion.\n\nWorked mini-example:\n- Build one short scenario and solve/explain it step by step.\n- Verify your answer by checking units, assumptions, or definitions.\n\nCommon mistakes:\n- Memorizing terms without understanding relationships.\n- Skipping why/how explanations and focusing only on final answers.\n\nReference: https://en.wikipedia.org/wiki/Photosynthesis",
-    "external_knowledge": {
-      "success": true,
-      "title": "Photosynthesis",
-      "summary": "Photosynthesis is a system of biological processes by which photopigment-bearing autotrophic organisms, such as most plants, algae and cyanobacteria, convert light energy — typically from sunlight — into the chemical energy necessary to fuel their metabolism. The term photosynthesis usually refers to oxygenic photosynthesis, a process that releases oxygen as a byproduct of water splitting. Photosynthetic organisms store the converted chemical energy within the bonds of intracellular organic compounds, typically carbohydrates like sugars, starches, phytoglycogen and cellulose. When needing to use this stored energy, an organism's cells then metabolize the organic compounds through cellular re...",
-      "source_url": "https://en.wikipedia.org/wiki/Photosynthesis"
-    }
-  },
-  "7070003aa9fc721f47bf8c3beb1944a51a109a6fef70fc68335a42f65b0293ff": {
-    "study_material": "Core concept (Math / Division):\nDivision: Division may refer to:\n\nKey points:\n- Identify the main definition and explain it in your own words.\n- Extract 3 key facts/rules and connect each one to a practical example.\n- Compare this concept with a similar concept to avoid confusion.\n\nWorked mini-example:\n- Build one short scenario and solve/explain it step by step.\n- Verify your answer by checking units, assumptions, or definitions.\n\nCommon mistakes:\n- Memorizing terms without understanding relationships.\n- Skipping why/how explanations and focusing only on final answers.\n\nReference: https://en.wikipedia.org/wiki/Division",
-    "external_knowledge": {
-      "success": true,
-      "title": "Division",
-      "summary": "Division may refer to:",
-      "source_url": "https://en.wikipedia.org/wiki/Division"
-    }
-  },
-  "c980701bc369e74c450cb3d67e9d4ebb46ef30a10a213d8b4da711084ce9c463": {
-    "quiz_questions": [
-      {
-        "question": "What is the best summary of Division?",
-        "options": [
-          "A core concept",
-          "An unrelated topic",
-          "A sports rule",
-          "A random city"
-        ],
-        "correct_answer": "A core concept",
-        "explanation": "Division should be understood through its core concepts and definitions."
-      },
-      {
-        "question": "Which approach helps learn Division best?",
-        "options": [
-          "Active recall",
-          "Never practicing",
-          "Ignoring mistakes",
-          "Skipping feedback"
-        ],
-        "correct_answer": "Active recall",
-        "explanation": "Active recall and spaced practice are reliable study methods."
-      },
-      {
-        "question": "What should you do after a wrong answer?",
-        "options": [
-          "Review the mistake",
-          "Ignore it",
-          "Memorize blindly",
-          "Stop practicing"
-        ],
-        "correct_answer": "Review the mistake",
-        "explanation": "Mistake review is the fastest way to improve weak concepts."
-      },
-      {
-        "question": "What is a good exam strategy?",
-        "options": [
-          "Practice regularly",
-          "Cram once",
-          "Skip hard topics",
-          "Avoid testing"
-        ],
-        "correct_answer": "Practice regularly",
-        "explanation": "Frequent short practice sessions improve retention."
-      },
-      {
-        "question": "What data is useful for personalized study?",
-        "options": [
-          "Past weak topics",
-          "Random guesses",
-          "None",
-          "Only study date"
-        ],
-        "correct_answer": "Past weak topics",
-        "explanation": "Weak-topic history helps adapt future study recommendations."
-      }
-    ]
-  },
-  "00cd6d08bc0617364549e2affbd08aa53138430e7e729ceaaa2f19f64aa668f4": {
-    "study_material": "Core concept (Math / Addition):\nAddition: Addition, usually denoted with the plus sign +, is one of the four basic operations of arithmetic, the other three being subtraction, multiplication, and division. The addition of two whole numbers results in the total or sum of those values combined. For example, the adjacent image shows two columns of apples, one with three apples and the other with two apples, totaling to five apples. This observation is expressed as \"3 + 2 = 5\", which is read as \"three plus two equals five\".\n\nKey points:\n- Identify the main definition and explain it in your own words.\n- Extract 3 key facts/rules and connect each one to a practical example.\n- Compare this concept with a similar concept to avoid confusion.\n\nWorked mini-example:\n- Build one short scenario and solve/explain it step by step.\n- Verify your answer by checking units, assumptions, or definitions.\n\nCommon mistakes:\n- Memorizing terms without understanding relationships.\n- Skipping why/how explanations and focusing only on final answers.\n\nReference: https://en.wikipedia.org/wiki/Addition",
-    "external_knowledge": {
-      "success": true,
-      "title": "Addition",
-      "summary": "Addition, usually denoted with the plus sign +, is one of the four basic operations of arithmetic, the other three being subtraction, multiplication, and division. The addition of two whole numbers results in the total or sum of those values combined. For example, the adjacent image shows two columns of apples, one with three apples and the other with two apples, totaling to five apples. This observation is expressed as \"3 + 2 = 5\", which is read as \"three plus two equals five\".",
-      "source_url": "https://en.wikipedia.org/wiki/Addition"
-    }
-  },
-  "c68de07ca6b1efc21c9119160f27464ea7ce7f862a3b075503af9baf0ca8d6a3": {
-    "study_material": "Core concept (Biology / Photosynthesis):\nPhotosynthesis: Photosynthesis is a system of biological processes by which photopigment-bearing autotrophic organisms, such as most plants, algae and cyanobacteria, convert light energy — typically from sunlight — into the chemical energy necessary to fuel their metabolism. The term photosynthesis usually refers to oxygenic photosynthesis, a process that releases oxygen as a byproduct of water splitting. Photosynthetic organisms store the converted chemical energy within the bonds of intracellular organic compounds, typically carbohydrates like sugars, starches, phytoglycogen and cellulose. When needing to use this stored energy, an organism's cells then metabolize the organic compounds through cellular re...\n\nKey points:\n- Identify the main definition and explain it in your own words.\n- Extract 3 key facts/rules and connect each one to a practical example.\n- Compare this concept with a similar concept to avoid confusion.\n\nWorked mini-example:\n- Build one short scenario and solve/explain it step by step.\n- Verify your answer by checking units, assumptions, or definitions.\n\nCommon mistakes:\n- Memorizing terms without understanding relationships.\n- Skipping why/how explanations and focusing only on final answers.\n\nReference: https://en.wikipedia.org/wiki/Photosynthesis",
-    "external_knowledge": {
-      "success": true,
-      "title": "Photosynthesis",
-      "summary": "Photosynthesis is a system of biological processes by which photopigment-bearing autotrophic organisms, such as most plants, algae and cyanobacteria, convert light energy — typically from sunlight — into the chemical energy necessary to fuel their metabolism. The term photosynthesis usually refers to oxygenic photosynthesis, a process that releases oxygen as a byproduct of water splitting. Photosynthetic organisms store the converted chemical energy within the bonds of intracellular organic compounds, typically carbohydrates like sugars, starches, phytoglycogen and cellulose. When needing to use this stored energy, an organism's cells then metabolize the organic compounds through cellular re...",
-      "source_url": "https://en.wikipedia.org/wiki/Photosynthesis"
-    }
-  },
-  "e46017bb83de9257dc91e4f6bbb18d1c21d78f5489200e0b0b491e5fdbd9b6a6": {
+  "177595bb97a14cd69580fa16d701e9371eb45c2e1eaac1b64c354f93459ef765": {
     "study_material": "Topic summary for French Revolution causes (History):\n- Core definition and why it matters.\n- 2-3 key rules/formulas.\n- One short example with explanation.\n- Common mistakes to avoid.",
     "external_knowledge": {
       "success": false,

@@ -20,7 +20,7 @@ from studygraph.usage import (
     build_usage_record,
     summarize_usage,
 )
-from studygraph.utils import call_with_retry
+from studygraph.utils import call_with_retry, trim_material_sections_from_study_plan
 
 
 load_dotenv()
@@ -218,6 +218,33 @@ def _stream_text_from_gemini(
         yield fallback_text
 
 
+def _collect_stream_text(
+    prompt: str,
+    fallback_text: str,
+    *,
+    provider: str,
+    temperature: float,
+    top_p: float,
+    call_type: str,
+) -> str:
+    """Consume the stream in memory (no ``st.write_stream``).
+
+    Streamlit's ``write_stream`` nests an inner ``empty()`` and flushes the full
+    untrimmed string there; a follow-up ``markdown`` on the parent slot does not
+    replace that inner node, so the UI could keep showing duplicate material.
+    """
+    return "".join(
+        _stream_text_with_provider(
+            prompt,
+            fallback_text,
+            provider=provider,
+            temperature=temperature,
+            top_p=top_p,
+            call_type=call_type,
+        )
+    )
+
+
 def _stream_text_with_provider(
     prompt: str,
     fallback_text: str,
@@ -248,7 +275,6 @@ def _build_study_plan_stream_prompt(
     profile: StudentProfile,
     session_input: StudySessionInput,
     weak_summary: list[tuple[str, int]],
-    feedback_hint: str,
 ) -> str:
     weak_text = ", ".join([f"{name} ({count})" for name, count in weak_summary]) or "none yet"
     return render_prompt(
@@ -261,7 +287,6 @@ def _build_study_plan_stream_prompt(
         study_goal=session_input.study_goal,
         style_hint=session_input.response_style,
         weak_text=weak_text,
-        feedback_hint=feedback_hint,
     )
 
 
@@ -797,6 +822,10 @@ def main() -> None:
             "current_quiz",
             "latest_recommendation",
             "usage_records",
+            "fb_signal",
+            "fb_section_open",
+            "fb_reasons",
+            "fb_note",
         ]:
             st.session_state.pop(key, None)
         st.session_state["pending_generation"] = {
@@ -847,20 +876,21 @@ def main() -> None:
                 )
                 st.session_state["applied_feedback_hint"] = feedback_hint
                 stream_prompt = _build_study_plan_stream_prompt(
-                    profile, session_input, weak_summary, feedback_hint
+                    profile, session_input, weak_summary
                 )
-                streamed_plan = plan_slot.write_stream(
-                    _stream_text_with_provider(
-                        stream_prompt,
-                        fallback_plan,
-                        provider=session_input.llm_provider,
-                        temperature=session_input.temperature,
-                        top_p=session_input.top_p,
-                        call_type="study_plan_stream",
-                    )
+                raw_plan = _collect_stream_text(
+                    stream_prompt,
+                    fallback_plan,
+                    provider=session_input.llm_provider,
+                    temperature=session_input.temperature,
+                    top_p=session_input.top_p,
+                    call_type="study_plan_stream",
                 )
-                final_plan = streamed_plan or fallback_plan
+                if not (raw_plan or "").strip():
+                    raw_plan = str(fallback_plan)
+                final_plan = trim_material_sections_from_study_plan(str(raw_plan))
                 st.session_state["current_study_plan"] = final_plan
+                plan_slot.markdown(final_plan)
                 st.session_state["current_external_knowledge"] = result.get(
                     "external_knowledge", {}
                 )
@@ -893,7 +923,11 @@ def main() -> None:
         )
     ):
         st.markdown("### Study plan")
-        st.write(st.session_state["current_study_plan"])
+        st.write(
+            trim_material_sections_from_study_plan(
+                str(st.session_state["current_study_plan"])
+            )
+        )
     st.session_state["just_streamed_study_plan"] = False
 
     if not is_generating and st.session_state.get("current_study_material"):
@@ -934,7 +968,13 @@ def main() -> None:
             file_name="study_material.txt",
             mime="text/plain",
         )
-        with st.expander("Feedback (optional)", expanded=False):
+        st.markdown("#### Feedback (optional)")
+        st.toggle(
+            "Show feedback options",
+            key="fb_section_open",
+            help="Optional ratings and notes; this panel stays open when you click 👍 / 👎 below.",
+        )
+        if st.session_state.get("fb_section_open"):
             col_up, col_down = st.columns(2)
             if col_up.button("👍 Helpful", key="fb_up"):
                 st.session_state["fb_signal"] = "up"

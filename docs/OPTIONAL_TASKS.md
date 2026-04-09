@@ -158,15 +158,16 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
 - **Status:** ✅ Implemented
 - **What was added:**
   - Material-level feedback capture in UI:
+    - optional **Show feedback options** toggle (instead of `st.expander`) so 👍/👎 clicks do not collapse the panel on rerun
     - thumbs up/down signal
     - reason tags
     - optional note
   - Feedback persistence per profile
   - Course-level feedback preference summarization
   - Prompt adaptation using summarized feedback preferences in:
-    - streamed study plan generation
-    - study material generation
+    - study material generation (plan stream intentionally omits feedback hints so the plan stays timed bullets only)
   - UI transparency line: `Applied feedback preferences: ...` when available
+  - Study plan stream prompt + post-trim guard so the plan does not duplicate study-material sections (core concept / key points / etc.)
 - **Files:**
   - `studygraph/models.py`
   - `studygraph/memory/store.py`
@@ -175,6 +176,7 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
   - `studygraph/prompts/loader.py`
   - `studygraph/graph/workflow.py`
   - `tests/test_memory_analytics.py`
+  - `studygraph/utils/plan_trim.py`, `tests/test_plan_trim.py`
 
 ### Medium #9 — Implement multi-model support (OpenAI, Anthropic, etc.)
 - **Status:** ✅ Covered (OpenAI + Gemini)

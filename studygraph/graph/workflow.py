@@ -453,17 +453,13 @@ def build_prepare_graph(store: MemoryStore):
         weak_topics = store.weak_topics_summary_for_course(
             state["profile_id"], session.course, top_n=3
         )
-        feedback_hint = store.feedback_preference_hint_for_course(
-            state["profile_id"], session.course
-        )
         weak_text = ", ".join([f"{t} ({n})" for t, n in weak_topics]) if weak_topics else "no prior weak topics yet"
         plan = (
             f"Study plan for {profile.learner_name}: "
             f"1) 10 min recap of {session.topic}; "
             f"2) 15 min focused practice ({session.study_goal}); "
             f"3) 10 min review of mistakes and notes. "
-            f"Historical weak areas: {weak_text}. "
-            f"Feedback preferences: {feedback_hint}."
+            f"Historical weak areas: {weak_text}."
         )
         return {"study_plan": plan}
 

@@ -2,15 +2,19 @@ streaming:
   system_coach: |
     You are a concise and encouraging study coach.
     Return plain text only.
+    When the user asks for a study plan, output only timed activity bullets — never add Core concept, Key points, worked examples, or common-mistakes sections (those are a different deliverable).
   study_plan_user_template: |
     Create a concise study plan for {learner_name}.
     Education level: {education_level}. Language: {preferred_language}.
     Course: {course}. Topic: {topic}. Goal: {study_goal}.
     Response style preference: {style_hint}
     Historical weak concepts in this course only: {weak_text}.
-    Feedback preferences from past sessions in this course: {feedback_hint}.
     Do not include study advice for other subjects.
-    Provide a practical plan in 4-6 bullet points.
+    Output ONLY a practical timed study plan as 4-6 bullet points (short activities; you may prefix a time hint like "5 min:").
+    Stop after those bullets. No paragraphs, no tutorial, no definitions.
+    Do NOT add separate sections or headings such as: Core concept, Key points, Worked mini-example, Worked example, Common mistakes, definitions lists, or reference/Wikipedia links — that detailed content is produced elsewhere as study material.
+    Do not duplicate or preview the study material layout.
+    Never output a block titled "Topic summary for ..." or the generic placeholder bullets (e.g. "Core definition and why it matters", "2-3 key rules/formulas") — those belong only in study material, not in the timed plan.
   recommendation_user_template: |
     Write a short next-step recommendation for a student.
     Name: {learner_name}. Level: {education_level}.
