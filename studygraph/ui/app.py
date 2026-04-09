@@ -38,6 +38,44 @@ def _store() -> MemoryStore:
     return MemoryStore(base_dir=root / "data" / "memory")
 
 
+def _settings_file_path() -> Path:
+    root = Path(__file__).resolve().parents[2]
+    path = root / "data" / "memory" / "app_settings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _load_app_settings() -> dict[str, float | str]:
+    default = {"llm_provider": "openai", "temperature": 0.4, "top_p": 1.0}
+    path = _settings_file_path()
+    if not path.exists():
+        return default
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            return default
+        provider = str(raw.get("llm_provider", "openai")).strip().lower()
+        if provider not in {"openai", "gemini"}:
+            provider = "openai"
+        temperature = float(raw.get("temperature", 0.4))
+        top_p = float(raw.get("top_p", 1.0))
+        temperature = min(2.0, max(0.0, temperature))
+        top_p = min(1.0, max(0.0, top_p))
+        return {"llm_provider": provider, "temperature": temperature, "top_p": top_p}
+    except Exception:
+        return default
+
+
+def _save_app_settings(*, llm_provider: str, temperature: float, top_p: float) -> None:
+    path = _settings_file_path()
+    payload = {
+        "llm_provider": llm_provider,
+        "temperature": float(temperature),
+        "top_p": float(top_p),
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 def _stream_text_from_openai(
     prompt: str,
     fallback_text: str,
@@ -212,6 +250,50 @@ def _render_footer() -> None:
         unsafe_allow_html=True,
     )
 
+
+def _inject_button_styles() -> None:
+    st.markdown(
+        """
+        <style>
+          /* Main CTA: avoid warning-like red tone */
+          div[data-testid="stButton"] > button[kind="primary"] {
+            background-color: #4caf50 !important;
+            border-color: #4caf50 !important;
+            color: #ffffff !important;
+          }
+          div[data-testid="stButton"] > button[kind="primary"]:hover {
+            background-color: #43a047 !important;
+            border-color: #43a047 !important;
+          }
+
+          /* Sidebar primary buttons should be orange (e.g., update profile) */
+          section[data-testid="stSidebar"] div[data-testid="stButton"] > button[kind="primary"] {
+            background-color: #fb8c00 !important;
+            border-color: #fb8c00 !important;
+            color: #ffffff !important;
+          }
+          section[data-testid="stSidebar"] div[data-testid="stButton"] > button[kind="primary"]:hover {
+            background-color: #f57c00 !important;
+            border-color: #f57c00 !important;
+          }
+
+          /* Sidebar action buttons default to light blue */
+          section[data-testid="stSidebar"] div[data-testid="stButton"] > button {
+            background-color: #edf5ff !important;
+            border-color: #b6d6ff !important;
+            color: #24559a !important;
+          }
+          section[data-testid="stSidebar"] div[data-testid="stButton"] > button:hover {
+            background-color: #deeeff !important;
+            border-color: #9ec8ff !important;
+          }
+
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _group_history_by_course(
     history: list,
 ) -> list[tuple[str, list]]:
@@ -274,20 +356,69 @@ def _history_rows(history: list) -> list[dict]:
     return rows
 
 
+def _sync_profile_form_state(
+    form_mode: str, active_profile_id: str | None, profile: StudentProfile | None
+) -> None:
+    marker = f"{form_mode}:{active_profile_id or '__none__'}"
+    if st.session_state.get("profile_form_loaded_for") == marker:
+        return
+
+    education_value_to_label = {
+        "primary": "Primary",
+        "middle": "Middle",
+        "high": "High",
+        "university_exam_prep": "University exam prep",
+    }
+    difficulty_value_to_label = {"easy": "Easy", "medium": "Medium", "hard": "Hard"}
+    pace_value_to_label = {"slow": "Slow", "balanced": "Balanced", "fast": "Fast"}
+
+    if form_mode == "Edit selected profile" and profile is not None:
+        st.session_state["pf_learner_name"] = profile.learner_name
+        st.session_state["pf_education_level"] = education_value_to_label.get(
+            profile.education_level, "High"
+        )
+        st.session_state["pf_preferred_language"] = profile.preferred_language
+        st.session_state["pf_preferred_difficulty"] = difficulty_value_to_label.get(
+            profile.preferred_difficulty, "Medium"
+        )
+        st.session_state["pf_preferred_pace"] = pace_value_to_label.get(
+            profile.preferred_pace, "Balanced"
+        )
+    else:
+        st.session_state["pf_learner_name"] = ""
+        st.session_state["pf_education_level"] = SELECT_PLACEHOLDER
+        st.session_state["pf_preferred_language"] = SELECT_PLACEHOLDER
+        st.session_state["pf_preferred_difficulty"] = SELECT_PLACEHOLDER
+        st.session_state["pf_preferred_pace"] = SELECT_PLACEHOLDER
+    st.session_state["profile_form_loaded_for"] = marker
+
+
 def main() -> None:
     st.set_page_config(page_title="StudyGraph", page_icon="📘", layout="wide")
+    _inject_button_styles()
     st.title(render_prompt("ui.app_title"))
     st.caption(render_prompt("ui.app_subtitle"))
     store = _store()
+    saved_settings = _load_app_settings()
 
     st.sidebar.header(render_prompt("ui.sidebar_profile_manager"))
     profile_ids = store.list_profile_ids()
-    no_profile_label = render_prompt("ui.no_profile_yet")
-    selected = st.sidebar.selectbox("Select profile", options=profile_ids or [no_profile_label])
-    active_profile_id = selected if selected != no_profile_label else None
+    selected = st.sidebar.selectbox("Select profile", options=[SELECT_PLACEHOLDER] + profile_ids)
+    active_profile_id = selected if selected != SELECT_PLACEHOLDER else None
+    selected_profile = store.load_profile(active_profile_id) if active_profile_id else None
+    if "profile_form_mode" not in st.session_state:
+        st.session_state["profile_form_mode"] = (
+            "Edit selected profile" if selected_profile else "Create new profile"
+        )
 
-    with st.sidebar.expander(render_prompt("ui.create_profile_section"), expanded=True):
-        learner_name = st.text_input("Learner name", value="Student One")
+    with st.sidebar.expander(render_prompt("ui.create_profile_section"), expanded=False):
+        form_mode = st.radio(
+            "Profile action",
+            options=["Create new profile", "Edit selected profile"],
+            key="profile_form_mode",
+        )
+        _sync_profile_form_state(form_mode, active_profile_id, selected_profile)
+        learner_name = st.text_input("Learner name", key="pf_learner_name")
         education_options = {
             "Primary": "primary",
             "Middle": "middle",
@@ -296,19 +427,44 @@ def main() -> None:
         }
         education_level = st.selectbox(
             "Education level",
-            options=list(education_options.keys()),
-            index=2,
+            options=[SELECT_PLACEHOLDER] + list(education_options.keys()),
+            key="pf_education_level",
         )
-        preferred_language = st.selectbox("Preferred language", options=["English"], index=0)
+        preferred_language = st.selectbox(
+            "Preferred language",
+            options=[SELECT_PLACEHOLDER, "English"],
+            key="pf_preferred_language",
+        )
         difficulty_options = {"Easy": "easy", "Medium": "medium", "Hard": "hard"}
         pace_options = {"Slow": "slow", "Balanced": "balanced", "Fast": "fast"}
         preferred_difficulty = st.selectbox(
-            "Preferred difficulty", options=list(difficulty_options.keys()), index=1
+            "Preferred difficulty",
+            options=[SELECT_PLACEHOLDER] + list(difficulty_options.keys()),
+            key="pf_preferred_difficulty",
         )
-        preferred_pace = st.selectbox("Preferred pace", options=list(pace_options.keys()), index=1)
+        preferred_pace = st.selectbox(
+            "Preferred pace",
+            options=[SELECT_PLACEHOLDER] + list(pace_options.keys()),
+            key="pf_preferred_pace",
+        )
 
-        if st.button("Save as new profile"):
+        if form_mode == "Create new profile" and st.button("Save as new profile"):
             try:
+                if not learner_name.strip():
+                    st.error("Learner name is required.")
+                    st.stop()
+                if education_level == SELECT_PLACEHOLDER:
+                    st.error("Please select an education level.")
+                    st.stop()
+                if preferred_language == SELECT_PLACEHOLDER:
+                    st.error("Please select a preferred language.")
+                    st.stop()
+                if preferred_difficulty == SELECT_PLACEHOLDER:
+                    st.error("Please select a preferred difficulty.")
+                    st.stop()
+                if preferred_pace == SELECT_PLACEHOLDER:
+                    st.error("Please select a preferred pace.")
+                    st.stop()
                 profile = StudentProfile(
                     learner_name=learner_name,
                     education_level=education_options[education_level],
@@ -327,8 +483,25 @@ def main() -> None:
             except Exception as exc:
                 st.error(f"Failed to create profile: {exc}")
 
-        if active_profile_id and st.button("Update selected profile"):
+        if form_mode == "Edit selected profile" and selected_profile and st.button(
+            "Update selected profile", type="primary"
+        ):
             try:
+                if not learner_name.strip():
+                    st.error("Learner name is required.")
+                    st.stop()
+                if education_level == SELECT_PLACEHOLDER:
+                    st.error("Please select an education level.")
+                    st.stop()
+                if preferred_language == SELECT_PLACEHOLDER:
+                    st.error("Please select a preferred language.")
+                    st.stop()
+                if preferred_difficulty == SELECT_PLACEHOLDER:
+                    st.error("Please select a preferred difficulty.")
+                    st.stop()
+                if preferred_pace == SELECT_PLACEHOLDER:
+                    st.error("Please select a preferred pace.")
+                    st.stop()
                 profile = StudentProfile(
                     learner_name=learner_name,
                     education_level=education_options[education_level],
@@ -340,13 +513,64 @@ def main() -> None:
                 st.success(f"Updated profile: {active_profile_id}")
             except Exception as exc:
                 st.error(f"Failed to update profile: {exc}")
+        if form_mode == "Edit selected profile" and not selected_profile:
+            st.info("Select a profile first to edit it.")
+
+    st.sidebar.divider()
+    st.sidebar.header("General Settings")
+    provider_label_options = {"OpenAI": "openai", "Gemini": "gemini"}
+    provider_labels = list(provider_label_options.keys())
+    default_provider_label = (
+        "Gemini" if saved_settings["llm_provider"] == "gemini" else "OpenAI"
+    )
+    gs_provider = st.sidebar.selectbox(
+        "LLM provider",
+        options=provider_labels,
+        index=provider_labels.index(default_provider_label),
+        key="gs_provider_choice",
+    )
+    gs_temperature = st.sidebar.slider(
+        "Temperature",
+        min_value=0.0,
+        max_value=2.0,
+        value=float(saved_settings["temperature"]),
+        step=0.1,
+        key="gs_temperature_value",
+        help="Lower = more deterministic, higher = more creative.",
+    )
+    gs_top_p = st.sidebar.slider(
+        "Top-p",
+        min_value=0.0,
+        max_value=1.0,
+        value=float(saved_settings["top_p"]),
+        step=0.05,
+        key="gs_top_p_value",
+        help="Nucleus sampling. 1.0 means no truncation.",
+    )
+    if st.sidebar.button("Save settings"):
+        try:
+            _save_app_settings(
+                llm_provider=provider_label_options[gs_provider],
+                temperature=float(gs_temperature),
+                top_p=float(gs_top_p),
+            )
+            st.sidebar.success("Settings saved.")
+            st.rerun()
+        except Exception as exc:
+            st.sidebar.error(f"Failed to save settings: {exc}")
+    st.sidebar.caption(
+        "These settings are saved and used for all requests until you change them."
+    )
 
     if not active_profile_id:
-        st.info(render_prompt("ui.create_profile_prompt"))
+        if profile_ids:
+            st.info("Select a profile from the sidebar to start studying.")
+        else:
+            st.info(render_prompt("ui.create_profile_prompt"))
         _render_footer()
         return
 
-    profile = store.load_profile(active_profile_id)
+    profile = selected_profile
     if profile is None:
         st.warning(render_prompt("ui.no_profile_loaded_warning"))
         return
@@ -380,13 +604,7 @@ def main() -> None:
     if "study_goal_choice" not in st.session_state:
         st.session_state["study_goal_choice"] = SELECT_PLACEHOLDER
     if "response_style_choice" not in st.session_state:
-        st.session_state["response_style_choice"] = "Friendly"
-    if "provider_choice" not in st.session_state:
-        st.session_state["provider_choice"] = "OpenAI"
-    if "temperature_value" not in st.session_state:
-        st.session_state["temperature_value"] = 0.4
-    if "top_p_value" not in st.session_state:
-        st.session_state["top_p_value"] = 1.0
+        st.session_state["response_style_choice"] = SELECT_PLACEHOLDER
 
     with st.expander("Interactive help: build a good study request", expanded=False):
         st.markdown(
@@ -449,34 +667,9 @@ def main() -> None:
     )
     response_style = st.selectbox(
         "Response style",
-        options=["Friendly", "Formal", "Concise"],
+        options=[SELECT_PLACEHOLDER, "Friendly", "Formal", "Concise"],
         key="response_style_choice",
     )
-    provider_choice = st.selectbox(
-        "LLM provider",
-        options=["OpenAI", "Gemini"],
-        key="provider_choice",
-    )
-    with st.expander("Model settings (OpenAI)", expanded=False):
-        st.caption("Settings apply to both OpenAI and Gemini.")
-        st.slider(
-            "Temperature",
-            min_value=0.0,
-            max_value=2.0,
-            value=0.4,
-            step=0.1,
-            key="temperature_value",
-            help="Lower = more deterministic, higher = more creative.",
-        )
-        st.slider(
-            "Top-p",
-            min_value=0.0,
-            max_value=1.0,
-            value=1.0,
-            step=0.05,
-            key="top_p_value",
-            help="Nucleus sampling. 1.0 means no truncation.",
-        )
 
     if st.button("Generate plan and study material", type="primary"):
         try:
@@ -486,6 +679,9 @@ def main() -> None:
             if study_goal == SELECT_PLACEHOLDER:
                 st.error("Please select a study goal.")
                 st.stop()
+            if response_style == SELECT_PLACEHOLDER:
+                st.error("Please select a response style.")
+                st.stop()
             if course_choice == "Other…" and not course:
                 st.error("Please enter a course name when you choose “Other…”")
                 st.stop()
@@ -494,9 +690,9 @@ def main() -> None:
                 topic=topic,
                 study_goal=study_goal,
                 response_style=response_style,
-                llm_provider="gemini" if provider_choice == "Gemini" else "openai",
-                temperature=float(st.session_state["temperature_value"]),
-                top_p=float(st.session_state["top_p_value"]),
+                llm_provider=str(saved_settings["llm_provider"]),
+                temperature=float(saved_settings["temperature"]),
+                top_p=float(saved_settings["top_p"]),
             )
             prepare_graph = build_prepare_graph(store)
             result = prepare_graph.invoke(

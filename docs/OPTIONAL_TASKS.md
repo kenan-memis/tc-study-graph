@@ -28,8 +28,8 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
 ### Easy #3 — Let user choose model provider
 - **Status:** ✅ Implemented
 - **What was added:**
-  - UI selector: `LLM provider` with `OpenAI` and `Gemini`
-  - Selected provider is stored in session input and applied to:
+  - `General Settings` sidebar section with persistent `LLM provider` selector (`OpenAI`, `Gemini`)
+  - Selected provider is saved and applied to:
     - streamed study-plan generation
     - streamed recommendation generation
     - study material generation
@@ -43,10 +43,10 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
 ### Easy #4 — Add OpenAI settings (temperature/top-p)
 - **Status:** ✅ Implemented
 - **What was added:**
-  - `Model settings (OpenAI)` UI expander with:
+  - `General Settings` sidebar section with persistent:
     - `Temperature` slider (0.0–2.0)
     - `Top-p` slider (0.0–1.0)
-  - Values are stored in session input and applied to:
+  - Saved values are applied to:
     - streamed study-plan generation
     - streamed recommendation generation
     - study material generation
