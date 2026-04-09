@@ -98,6 +98,9 @@ DEFAULT_PROMPTS: dict[str, Any] = {
         "no_profile_loaded_warning": "Selected profile could not be loaded.",
         "material_ready_success": "Study plan and material ready.",
         "quiz_ready_success": "Quiz generated. Continue with exercises below.",
+        "rate_limit_wait": (
+            "Please wait {seconds}s before using this action again (protects API usage)."
+        ),
     },
 }
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import json
+import time
 from collections import defaultdict
 from typing import Generator
 from datetime import datetime, timezone
@@ -36,6 +37,11 @@ STANDARD_COURSES = [
     "Computer science",
 ]
 SELECT_PLACEHOLDER = "Select..."
+# Per-session cooldowns (seconds) for LLM-heavy actions (Streamlit session_state).
+RATE_LIMIT_GENERATE_SECONDS = 8.0
+RATE_LIMIT_QUIZ_SECONDS = 6.0
+RATE_LIMIT_EVALUATE_SECONDS = 6.0
+
 FEEDBACK_REASON_OPTIONS = [
     "too long",
     "too short",
@@ -98,6 +104,21 @@ def _provider_key_available(provider: str) -> bool:
 
 def _safe_ui_error(context: str) -> str:
     return f"{context}. Please try again."
+
+
+def _rate_limit_allow(action_id: str, cooldown_sec: float) -> bool:
+    """Return True if this action may run; otherwise show a warning and False."""
+    now = time.monotonic()
+    key = f"_rate_limit_{action_id}"
+    prev = st.session_state.get(key)
+    if prev is not None:
+        elapsed = now - float(prev)
+        if elapsed < cooldown_sec:
+            wait = max(1, int(cooldown_sec - elapsed + 0.999))
+            st.warning(render_prompt("ui.rate_limit_wait", seconds=wait))
+            return False
+    st.session_state[key] = now
+    return True
 
 
 def _append_usage_record(record: dict | None) -> None:
@@ -814,6 +835,9 @@ def main() -> None:
             st.error("Please enter a course name when you choose “Other…”")
             st.stop()
 
+        if not _rate_limit_allow("generate_plan_material", RATE_LIMIT_GENERATE_SECONDS):
+            st.stop()
+
         # Clear old outputs first, then rerun and generate in a fresh render cycle.
         for key in [
             "current_study_plan",
@@ -1014,6 +1038,8 @@ def main() -> None:
         and not st.session_state.get("current_quiz")
     ):
         if st.button("Start Quiz"):
+            if not _rate_limit_allow("start_quiz", RATE_LIMIT_QUIZ_SECONDS):
+                st.stop()
             try:
                 quiz_graph = build_quiz_graph(store)
                 quiz_result = quiz_graph.invoke(
@@ -1048,6 +1074,8 @@ def main() -> None:
             )
 
         if st.button("Evaluate answers"):
+            if not _rate_limit_allow("evaluate_quiz", RATE_LIMIT_EVALUATE_SECONDS):
+                st.stop()
             try:
                 eval_graph = build_evaluation_graph(store)
                 eval_result = eval_graph.invoke(
