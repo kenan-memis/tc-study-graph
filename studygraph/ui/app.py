@@ -107,8 +107,7 @@ def _build_recommendation_stream_prompt(
 def _render_footer() -> None:
     footer_line_1 = render_prompt("ui.fixed_footer_line_1")
     footer_line_2 = render_prompt("ui.fixed_footer_line_2")
-    st.markdown(
-        f"""
+    footer_html = """
         <style>
           .sg-fixed-footer {
             position: fixed;
@@ -131,10 +130,15 @@ def _render_footer() -> None:
         </style>
         <div class="sg-footer-spacer"></div>
         <div class="sg-fixed-footer">
-          <div>{footer_line_1}</div>
-          <div>{footer_line_2}</div>
+          <div>__FOOTER_LINE_1__</div>
+          <div>__FOOTER_LINE_2__</div>
         </div>
-        """,
+        """
+    footer_html = footer_html.replace("__FOOTER_LINE_1__", footer_line_1).replace(
+        "__FOOTER_LINE_2__", footer_line_2
+    )
+    st.markdown(
+        footer_html,
         unsafe_allow_html=True,
     )
 
