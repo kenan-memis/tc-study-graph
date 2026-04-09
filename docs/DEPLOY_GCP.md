@@ -20,7 +20,7 @@ The Streamlit app loads keys with `python-dotenv` **and** `os.getenv`. In Cloud 
 
 | File | Purpose |
 |------|---------|
-| `Dockerfile` | `python:3.13-slim`, `uv sync --frozen --no-dev`, entrypoint |
+| `Dockerfile` | `python:3.13-slim`, `uv sync` (production: `--no-dev`; local Compose may set `INSTALL_DEV=true`) |
 | `docker-entrypoint.sh` | Runs Streamlit on `0.0.0.0` and `$PORT` (default `8080`) |
 | `.dockerignore` | Keeps `.venv`, tests, local `data/memory`, `.env`, etc. out of the image |
 
