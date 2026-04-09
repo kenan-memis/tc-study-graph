@@ -11,6 +11,7 @@ DifficultyLevel = Literal["easy", "medium", "hard"]
 PaceLevel = Literal["slow", "balanced", "fast"]
 ResponseStyle = Literal["Friendly", "Formal", "Concise"]
 LlmProvider = Literal["openai", "gemini"]
+FeedbackSignal = Literal["up", "down"]
 
 
 class StudentProfile(BaseModel):
@@ -82,4 +83,28 @@ class QuizQuestion(BaseModel):
         if len(cleaned) < 2:
             raise ValueError("Each question must include at least 2 options.")
         return cleaned
+
+
+class FeedbackRecord(BaseModel):
+    course: str = Field(min_length=1, max_length=80)
+    topic: str = Field(min_length=1, max_length=800)
+    signal: FeedbackSignal
+    reasons: list[str] = Field(default_factory=list, max_length=8)
+    note: str = Field(default="", max_length=300)
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    @field_validator("course", "topic", "signal", "note")
+    @classmethod
+    def _strip_text(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("reasons")
+    @classmethod
+    def _normalize_reasons(cls, values: list[str]) -> list[str]:
+        out: list[str] = []
+        for item in values:
+            text = item.strip().lower()
+            if text:
+                out.append(text)
+        return out
 

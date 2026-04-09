@@ -5,7 +5,7 @@ from collections import Counter
 from pathlib import Path
 import re
 
-from studygraph.models import SessionRecord, StudentProfile
+from studygraph.models import FeedbackRecord, SessionRecord, StudentProfile
 
 
 class MemoryStore:
@@ -83,6 +83,25 @@ class MemoryStore:
             return []
         return [SessionRecord.model_validate(item) for item in raw]
 
+    def append_feedback_record(self, profile_id: str, record: FeedbackRecord) -> None:
+        feedback_path = self._profile_dir(profile_id) / "feedback.json"
+        history = self.load_feedback_history(profile_id)
+        history.append(record)
+        payload = [item.model_dump() for item in history]
+        feedback_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+    def load_feedback_history(self, profile_id: str) -> list[FeedbackRecord]:
+        feedback_path = self._profile_dir(profile_id) / "feedback.json"
+        if not feedback_path.exists():
+            return []
+        raw = json.loads(feedback_path.read_text(encoding="utf-8"))
+        if not isinstance(raw, list):
+            return []
+        return [FeedbackRecord.model_validate(item) for item in raw]
+
     @staticmethod
     def _normalize_course(course: str) -> str:
         return (course or "").strip().lower()
@@ -106,4 +125,27 @@ class MemoryStore:
                 continue
             counter.update(record.weak_concepts)
         return counter.most_common(top_n)
+
+    def feedback_preference_hint_for_course(
+        self, profile_id: str, course: str, *, recent_n: int = 12
+    ) -> str:
+        target = self._normalize_course(course)
+        if not target:
+            return "none"
+        relevant = [
+            r
+            for r in self.load_feedback_history(profile_id)
+            if self._normalize_course(r.course) == target
+        ]
+        if not relevant:
+            return "none"
+        recent = relevant[-recent_n:]
+        reason_counter: Counter[str] = Counter()
+        for rec in recent:
+            for reason in rec.reasons:
+                reason_counter.update([reason])
+        if not reason_counter:
+            return "none"
+        top = [name for name, _ in reason_counter.most_common(3)]
+        return ", ".join(top)
 

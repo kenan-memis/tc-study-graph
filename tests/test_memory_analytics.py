@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from studygraph.memory import MemoryStore
-from studygraph.models import SessionRecord
+from studygraph.models import FeedbackRecord, SessionRecord
 
 
 def test_weak_topics_summary_returns_top_items(tmp_path: Path) -> None:
@@ -59,3 +59,28 @@ def test_weak_topics_summary_for_course_isolates_courses(tmp_path: Path) -> None
 
     chem_only = store.weak_topics_summary_for_course(pid, "Chemistry", top_n=5)
     assert chem_only == []
+
+
+def test_feedback_preference_hint_for_course_aggregates_reasons(tmp_path: Path) -> None:
+    store = MemoryStore(base_dir=tmp_path / "memory")
+    pid = store.create_profile_id("Learner")
+    store.append_feedback_record(
+        pid,
+        FeedbackRecord(
+            course="Biology",
+            topic="Photosynthesis",
+            signal="down",
+            reasons=["too hard", "not enough examples"],
+        ),
+    )
+    store.append_feedback_record(
+        pid,
+        FeedbackRecord(
+            course="Biology",
+            topic="Cells",
+            signal="down",
+            reasons=["not enough examples"],
+        ),
+    )
+    hint = store.feedback_preference_hint_for_course(pid, "Biology")
+    assert "not enough examples" in hint

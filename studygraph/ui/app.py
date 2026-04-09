@@ -14,7 +14,7 @@ from openai import OpenAI
 
 from studygraph.graph import build_evaluation_graph, build_prepare_graph, build_quiz_graph
 from studygraph.memory import MemoryStore
-from studygraph.models import StudySessionInput, StudentProfile
+from studygraph.models import FeedbackRecord, StudySessionInput, StudentProfile
 from studygraph.prompts import render_prompt
 from studygraph.usage import (
     build_usage_record,
@@ -36,6 +36,15 @@ STANDARD_COURSES = [
     "Computer science",
 ]
 SELECT_PLACEHOLDER = "Select..."
+FEEDBACK_REASON_OPTIONS = [
+    "too long",
+    "too short",
+    "too hard",
+    "too easy",
+    "not enough examples",
+    "too much theory",
+    "unclear structure",
+]
 
 
 def _store() -> MemoryStore:
@@ -239,6 +248,7 @@ def _build_study_plan_stream_prompt(
     profile: StudentProfile,
     session_input: StudySessionInput,
     weak_summary: list[tuple[str, int]],
+    feedback_hint: str,
 ) -> str:
     weak_text = ", ".join([f"{name} ({count})" for name, count in weak_summary]) or "none yet"
     return render_prompt(
@@ -251,6 +261,7 @@ def _build_study_plan_stream_prompt(
         study_goal=session_input.study_goal,
         style_hint=session_input.response_style,
         weak_text=weak_text,
+        feedback_hint=feedback_hint,
     )
 
 
@@ -347,6 +358,28 @@ def _inject_button_styles() -> None:
           section[data-testid="stSidebar"] div[data-testid="stButton"] > button:hover {
             background-color: #deeeff !important;
             border-color: #9ec8ff !important;
+          }
+
+          /* Primary actions inside expanders (e.g. feedback submit) -> orange */
+          div[data-testid="stExpander"] div[data-testid="stButton"] > button[kind="primary"] {
+            background-color: #fb8c00 !important;
+            border-color: #fb8c00 !important;
+            color: #ffffff !important;
+          }
+          div[data-testid="stExpander"] div[data-testid="stButton"] > button[kind="primary"]:hover {
+            background-color: #f57c00 !important;
+            border-color: #f57c00 !important;
+          }
+
+          /* Download button visual separation -> light red */
+          div[data-testid="stDownloadButton"] > button {
+            background-color: #ffebee !important;
+            border-color: #ef9a9a !important;
+            color: #b71c1c !important;
+          }
+          div[data-testid="stDownloadButton"] > button:hover {
+            background-color: #ffcdd2 !important;
+            border-color: #e57373 !important;
           }
 
         </style>
@@ -809,7 +842,13 @@ def main() -> None:
                 weak_summary = store.weak_topics_summary_for_course(
                     active_profile_id, session_input.course, top_n=3
                 )
-                stream_prompt = _build_study_plan_stream_prompt(profile, session_input, weak_summary)
+                feedback_hint = store.feedback_preference_hint_for_course(
+                    active_profile_id, session_input.course
+                )
+                st.session_state["applied_feedback_hint"] = feedback_hint
+                stream_prompt = _build_study_plan_stream_prompt(
+                    profile, session_input, weak_summary, feedback_hint
+                )
                 streamed_plan = plan_slot.write_stream(
                     _stream_text_with_provider(
                         stream_prompt,
@@ -860,6 +899,9 @@ def main() -> None:
     if not is_generating and st.session_state.get("current_study_material"):
         st.markdown("### Study Material Summary")
         st.write(st.session_state["current_study_material"])
+        applied_feedback_hint = str(st.session_state.get("applied_feedback_hint", "none")).strip()
+        if applied_feedback_hint and applied_feedback_hint != "none":
+            st.caption(f"Applied feedback preferences: {applied_feedback_hint}")
         ext = st.session_state.get("current_external_knowledge", {})
         ext_success = (
             isinstance(ext, dict)
@@ -892,6 +934,42 @@ def main() -> None:
             file_name="study_material.txt",
             mime="text/plain",
         )
+        with st.expander("Feedback (optional)", expanded=False):
+            col_up, col_down = st.columns(2)
+            if col_up.button("👍 Helpful", key="fb_up"):
+                st.session_state["fb_signal"] = "up"
+            if col_down.button("👎 Needs improvement", key="fb_down"):
+                st.session_state["fb_signal"] = "down"
+            fb_signal = st.session_state.get("fb_signal", "")
+            st.caption(f"Selected feedback: `{fb_signal or 'none'}`")
+            fb_reasons = st.multiselect(
+                "What should we improve next time?",
+                options=FEEDBACK_REASON_OPTIONS,
+                default=[],
+                key="fb_reasons",
+            )
+            fb_note = st.text_input(
+                "Optional note",
+                key="fb_note",
+                placeholder="e.g. More examples, less theory, simpler language",
+            )
+            if st.button("Save feedback", key="fb_save", type="primary"):
+                try:
+                    if fb_signal not in {"up", "down"}:
+                        st.error("Select 👍 or 👎 before saving feedback.")
+                        st.stop()
+                    session = st.session_state.get("current_session_input", {})
+                    record = FeedbackRecord(
+                        course=str(session.get("course", "")).strip(),
+                        topic=str(session.get("topic", "")).strip(),
+                        signal=fb_signal,
+                        reasons=fb_reasons,
+                        note=fb_note,
+                    )
+                    store.append_feedback_record(active_profile_id, record)
+                    st.success("Feedback saved. Next generations will adapt to it.")
+                except Exception:
+                    st.error(_safe_ui_error("Failed to save feedback"))
 
     if (
         not is_generating

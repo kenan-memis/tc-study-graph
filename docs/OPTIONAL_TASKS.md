@@ -110,6 +110,19 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
   - `studygraph/graph/workflow.py`
   - `tests/test_retry.py`
 
+### Medium #3 — Implement long-term or short-term memory in LangChain/LangGraph
+- **Status:** ✅ Covered by existing architecture
+- **Why this counts:**
+  - Long-term memory is implemented and persisted per profile in JSON storage
+  - Session history is used to personalize study plans and recommendations (including course-scoped weak-topic retrieval)
+  - LangGraph state is used across prepare/quiz/evaluate flows
+- **Note:** Memory is implemented with a custom store (`MemoryStore`) rather than framework-native memory helpers, but functional requirements are met.
+- **Files:**
+  - `studygraph/memory/store.py`
+  - `studygraph/graph/workflow.py`
+  - `tests/test_memory_store.py`
+  - `tests/test_memory_analytics.py`
+
 ### Medium #4 — Implement one more function tool that calls an external API
 - **Status:** ✅ Implemented
 - **What was added:**
@@ -140,6 +153,43 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
   - `studygraph/cache.py`
   - `studygraph/graph/workflow.py`
   - `tests/test_cache.py`
+
+### Medium #7 — Implement a feedback loop to improve responses
+- **Status:** ✅ Implemented
+- **What was added:**
+  - Material-level feedback capture in UI:
+    - thumbs up/down signal
+    - reason tags
+    - optional note
+  - Feedback persistence per profile
+  - Course-level feedback preference summarization
+  - Prompt adaptation using summarized feedback preferences in:
+    - streamed study plan generation
+    - study material generation
+  - UI transparency line: `Applied feedback preferences: ...` when available
+- **Files:**
+  - `studygraph/models.py`
+  - `studygraph/memory/store.py`
+  - `studygraph/ui/app.py`
+  - `studygraph/prompts/prompts.yaml`
+  - `studygraph/prompts/loader.py`
+  - `studygraph/graph/workflow.py`
+  - `tests/test_memory_analytics.py`
+
+### Medium #9 — Implement multi-model support (OpenAI, Anthropic, etc.)
+- **Status:** ✅ Covered (OpenAI + Gemini)
+- **What is implemented:**
+  - User-selectable provider (`OpenAI` / `Gemini`) in `General Settings`
+  - Same app workflow supports both providers for:
+    - streamed study plan
+    - streamed recommendation
+    - study material generation
+    - quiz generation
+- **Note:** Implementation currently supports 2 providers (not 3+).
+- **Files:**
+  - `studygraph/ui/app.py`
+  - `studygraph/models.py`
+  - `studygraph/graph/workflow.py`
 
 ---
 

@@ -17,6 +17,7 @@ DEFAULT_PROMPTS: dict[str, Any] = {
             "Course: {course}. Topic: {topic}. Goal: {study_goal}. "
             "Response style preference: {style_hint}. "
             "Historical weak concepts in this course only: {weak_text}. "
+            "Feedback preferences from past sessions in this course: {feedback_hint}. "
             "Do not include study advice for other subjects. "
             "Provide a practical plan in 4-6 bullet points."
         ),
@@ -41,6 +42,7 @@ DEFAULT_PROMPTS: dict[str, Any] = {
             "Create concise study material in plain text with bullets. "
             "Course: {course}. Topic: {topic}. Student level: {level}. Language: {language}. "
             "Response style preference: {style_hint}. "
+            "Feedback preferences from past sessions in this course: {feedback_hint}. "
             "External context (if available): {external_context}. "
             "If external context is present, use it for factual grounding and keep it concise. "
             "Sections: core concept, key points, worked mini-example, common mistakes. "

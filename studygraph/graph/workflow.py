@@ -277,6 +277,7 @@ def _build_material_with_openai(topic: str, course: str, level: str, language: s
         level=level,
         language=language,
         style_hint="Friendly",
+        feedback_hint="none",
         external_context="none",
         external_source_url="",
     )
@@ -289,6 +290,7 @@ def _build_material_with_openai_styled(
     level: str,
     language: str,
     style_hint: str,
+    feedback_hint: str,
     external_context: str,
     external_source_url: str,
     *,
@@ -313,6 +315,7 @@ def _build_material_with_openai_styled(
         level=level,
         language=language,
         style_hint=style_hint,
+        feedback_hint=feedback_hint,
         external_context=external_context,
     )
     try:
@@ -357,6 +360,7 @@ def _build_material_with_gemini_styled(
     level: str,
     language: str,
     style_hint: str,
+    feedback_hint: str,
     external_context: str,
     external_source_url: str,
     *,
@@ -380,6 +384,7 @@ def _build_material_with_gemini_styled(
         level=level,
         language=language,
         style_hint=style_hint,
+        feedback_hint=feedback_hint,
         external_context=external_context,
     )
     url = (
@@ -448,13 +453,17 @@ def build_prepare_graph(store: MemoryStore):
         weak_topics = store.weak_topics_summary_for_course(
             state["profile_id"], session.course, top_n=3
         )
+        feedback_hint = store.feedback_preference_hint_for_course(
+            state["profile_id"], session.course
+        )
         weak_text = ", ".join([f"{t} ({n})" for t, n in weak_topics]) if weak_topics else "no prior weak topics yet"
         plan = (
             f"Study plan for {profile.learner_name}: "
             f"1) 10 min recap of {session.topic}; "
             f"2) 15 min focused practice ({session.study_goal}); "
             f"3) 10 min review of mistakes and notes. "
-            f"Historical weak areas: {weak_text}."
+            f"Historical weak areas: {weak_text}. "
+            f"Feedback preferences: {feedback_hint}."
         )
         return {"study_plan": plan}
 
@@ -486,6 +495,9 @@ def build_prepare_graph(store: MemoryStore):
             }
 
         usage: dict[str, Any] | None = None
+        feedback_hint = store.feedback_preference_hint_for_course(
+            state["profile_id"], session.course
+        )
         ext = fetch_wikipedia_summary(session.topic)
         external_context = (
             f"{ext.get('title', session.topic)}: {ext.get('summary', '')}"
@@ -500,6 +512,7 @@ def build_prepare_graph(store: MemoryStore):
                 level=profile.education_level,
                 language=profile.preferred_language,
                 style_hint=session.response_style,
+                feedback_hint=feedback_hint,
                 external_context=external_context,
                 external_source_url=external_source_url,
                 temperature=session.temperature,
@@ -512,6 +525,7 @@ def build_prepare_graph(store: MemoryStore):
                 level=profile.education_level,
                 language=profile.preferred_language,
                 style_hint=session.response_style,
+                feedback_hint=feedback_hint,
                 external_context=external_context,
                 external_source_url=external_source_url,
                 temperature=session.temperature,

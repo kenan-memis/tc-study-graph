@@ -413,5 +413,30 @@
         "explanation": "Weak-topic history helps adapt future study recommendations."
       }
     ]
+  },
+  "00cd6d08bc0617364549e2affbd08aa53138430e7e729ceaaa2f19f64aa668f4": {
+    "study_material": "Core concept (Math / Addition):\nAddition: Addition, usually denoted with the plus sign +, is one of the four basic operations of arithmetic, the other three being subtraction, multiplication, and division. The addition of two whole numbers results in the total or sum of those values combined. For example, the adjacent image shows two columns of apples, one with three apples and the other with two apples, totaling to five apples. This observation is expressed as \"3 + 2 = 5\", which is read as \"three plus two equals five\".\n\nKey points:\n- Identify the main definition and explain it in your own words.\n- Extract 3 key facts/rules and connect each one to a practical example.\n- Compare this concept with a similar concept to avoid confusion.\n\nWorked mini-example:\n- Build one short scenario and solve/explain it step by step.\n- Verify your answer by checking units, assumptions, or definitions.\n\nCommon mistakes:\n- Memorizing terms without understanding relationships.\n- Skipping why/how explanations and focusing only on final answers.\n\nReference: https://en.wikipedia.org/wiki/Addition",
+    "external_knowledge": {
+      "success": true,
+      "title": "Addition",
+      "summary": "Addition, usually denoted with the plus sign +, is one of the four basic operations of arithmetic, the other three being subtraction, multiplication, and division. The addition of two whole numbers results in the total or sum of those values combined. For example, the adjacent image shows two columns of apples, one with three apples and the other with two apples, totaling to five apples. This observation is expressed as \"3 + 2 = 5\", which is read as \"three plus two equals five\".",
+      "source_url": "https://en.wikipedia.org/wiki/Addition"
+    }
+  },
+  "c68de07ca6b1efc21c9119160f27464ea7ce7f862a3b075503af9baf0ca8d6a3": {
+    "study_material": "Core concept (Biology / Photosynthesis):\nPhotosynthesis: Photosynthesis is a system of biological processes by which photopigment-bearing autotrophic organisms, such as most plants, algae and cyanobacteria, convert light energy — typically from sunlight — into the chemical energy necessary to fuel their metabolism. The term photosynthesis usually refers to oxygenic photosynthesis, a process that releases oxygen as a byproduct of water splitting. Photosynthetic organisms store the converted chemical energy within the bonds of intracellular organic compounds, typically carbohydrates like sugars, starches, phytoglycogen and cellulose. When needing to use this stored energy, an organism's cells then metabolize the organic compounds through cellular re...\n\nKey points:\n- Identify the main definition and explain it in your own words.\n- Extract 3 key facts/rules and connect each one to a practical example.\n- Compare this concept with a similar concept to avoid confusion.\n\nWorked mini-example:\n- Build one short scenario and solve/explain it step by step.\n- Verify your answer by checking units, assumptions, or definitions.\n\nCommon mistakes:\n- Memorizing terms without understanding relationships.\n- Skipping why/how explanations and focusing only on final answers.\n\nReference: https://en.wikipedia.org/wiki/Photosynthesis",
+    "external_knowledge": {
+      "success": true,
+      "title": "Photosynthesis",
+      "summary": "Photosynthesis is a system of biological processes by which photopigment-bearing autotrophic organisms, such as most plants, algae and cyanobacteria, convert light energy — typically from sunlight — into the chemical energy necessary to fuel their metabolism. The term photosynthesis usually refers to oxygenic photosynthesis, a process that releases oxygen as a byproduct of water splitting. Photosynthetic organisms store the converted chemical energy within the bonds of intracellular organic compounds, typically carbohydrates like sugars, starches, phytoglycogen and cellulose. When needing to use this stored energy, an organism's cells then metabolize the organic compounds through cellular re...",
+      "source_url": "https://en.wikipedia.org/wiki/Photosynthesis"
+    }
+  },
+  "e46017bb83de9257dc91e4f6bbb18d1c21d78f5489200e0b0b491e5fdbd9b6a6": {
+    "study_material": "Topic summary for French Revolution causes (History):\n- Core definition and why it matters.\n- 2-3 key rules/formulas.\n- One short example with explanation.\n- Common mistakes to avoid.",
+    "external_knowledge": {
+      "success": false,
+      "error": "No summary returned."
+    }
   }
 }

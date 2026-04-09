@@ -1,0 +1,13 @@
+[
+  {
+    "course": "Biology",
+    "topic": "Photosynthesis",
+    "signal": "down",
+    "reasons": [
+      "not enough examples",
+      "too hard"
+    ],
+    "note": "Use simpler language and add one concrete example",
+    "created_at": "2026-04-09T19:11:09.185054+00:00"
+  }
+]
