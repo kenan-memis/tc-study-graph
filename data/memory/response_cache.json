@@ -150,5 +150,82 @@
       "success": false,
       "error": "No summary returned."
     }
+  },
+  "9dea7fc290af9c174d425471c2de41285cb33da84b2cdd18a5053bb08c44faa8": {
+    "quiz_questions": [
+      {
+        "question": "What is the best summary of Division?",
+        "options": [
+          "A core concept",
+          "An unrelated topic",
+          "A sports rule",
+          "A random city"
+        ],
+        "correct_answer": "A core concept",
+        "explanation": "Division should be understood through its core concepts and definitions."
+      },
+      {
+        "question": "Which approach helps learn Division best?",
+        "options": [
+          "Active recall",
+          "Never practicing",
+          "Ignoring mistakes",
+          "Skipping feedback"
+        ],
+        "correct_answer": "Active recall",
+        "explanation": "Active recall and spaced practice are reliable study methods."
+      },
+      {
+        "question": "What should you do after a wrong answer?",
+        "options": [
+          "Review the mistake",
+          "Ignore it",
+          "Memorize blindly",
+          "Stop practicing"
+        ],
+        "correct_answer": "Review the mistake",
+        "explanation": "Mistake review is the fastest way to improve weak concepts."
+      },
+      {
+        "question": "What is a good exam strategy?",
+        "options": [
+          "Practice regularly",
+          "Cram once",
+          "Skip hard topics",
+          "Avoid testing"
+        ],
+        "correct_answer": "Practice regularly",
+        "explanation": "Frequent short practice sessions improve retention."
+      },
+      {
+        "question": "What data is useful for personalized study?",
+        "options": [
+          "Past weak topics",
+          "Random guesses",
+          "None",
+          "Only study date"
+        ],
+        "correct_answer": "Past weak topics",
+        "explanation": "Weak-topic history helps adapt future study recommendations."
+      }
+    ]
+  },
+  "a71221dde3c735c27902b226b872c322a2a2f2bedfb4bfbd88bb3d2f11239dc9": {
+    "study_material": "Core concept (Economics / Supply and demand):\nSupply and demand: In microeconomics, supply and demand is an economic model of price determination in a market. It postulates that, holding all else equal, the unit price for a particular good or other traded item in a perfectly competitive market, will vary until it settles at the market-clearing price, where the quantity demanded equals the quantity supplied such that an economic equilibrium is achieved for price and quantity transacted. The concept of supply and demand forms the theoretical basis of modern economics.\n\nKey points:\n- Identify the main definition and explain it in your own words.\n- Extract 3 key facts/rules and connect each one to a practical example.\n- Compare this concept with a similar concept to avoid confusion.\n\nWorked mini-example:\n- Build one short scenario and solve/explain it step by step.\n- Verify your answer by checking units, assumptions, or definitions.\n\nCommon mistakes:\n- Memorizing terms without understanding relationships.\n- Skipping why/how explanations and focusing only on final answers.\n\nReference: https://en.wikipedia.org/wiki/Supply_and_demand",
+    "external_knowledge": {
+      "success": true,
+      "title": "Supply and demand",
+      "summary": "In microeconomics, supply and demand is an economic model of price determination in a market. It postulates that, holding all else equal, the unit price for a particular good or other traded item in a perfectly competitive market, will vary until it settles at the market-clearing price, where the quantity demanded equals the quantity supplied such that an economic equilibrium is achieved for price and quantity transacted. The concept of supply and demand forms the theoretical basis of modern economics.",
+      "source_url": "https://en.wikipedia.org/wiki/Supply_and_demand"
+    }
+  },
+  "0cb9dfffc550cdf51dde8b13960ebd3773c64ac73e8d4b1c22153515a0ad4bff": {
+    "study_material": "Core concept (Math / Addition):\nAddition: Addition, usually denoted with the plus sign +, is one of the four basic operations of arithmetic, the other three being subtraction, multiplication, and division. The addition of two whole numbers results in the total or sum of those values combined. For example, the adjacent image shows two columns of apples, one with three apples and the other with two apples, totaling to five apples. This observation is expressed as \"3 + 2 = 5\", which is read as \"three plus two equals five\".\n\nKey points:\n- Identify the main definition and explain it in your own words.\n- Extract 3 key facts/rules and connect each one to a practical example.\n- Compare this concept with a similar concept to avoid confusion.\n\nWorked mini-example:\n- Build one short scenario and solve/explain it step by step.\n- Verify your answer by checking units, assumptions, or definitions.\n\nCommon mistakes:\n- Memorizing terms without understanding relationships.\n- Skipping why/how explanations and focusing only on final answers.\n\nReference: https://en.wikipedia.org/wiki/Addition",
+    "external_knowledge": {
+      "success": true,
+      "title": "Addition",
+      "summary": "Addition, usually denoted with the plus sign +, is one of the four basic operations of arithmetic, the other three being subtraction, multiplication, and division. The addition of two whole numbers results in the total or sum of those values combined. For example, the adjacent image shows two columns of apples, one with three apples and the other with two apples, totaling to five apples. This observation is expressed as \"3 + 2 = 5\", which is read as \"three plus two equals five\".",
+      "source_url": "https://en.wikipedia.org/wiki/Addition"
+    }
   }
 }

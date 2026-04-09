@@ -843,8 +843,7 @@ def main() -> None:
         try:
             st.markdown("### Study plan")
             plan_slot = st.empty()
-            plan_slot.info("Generating a fresh study plan...")
-            material_slot = st.empty()
+            plan_slot.info("Generating a fresh study plan…")
 
             session_input = StudySessionInput(
                 course=str(pending_generation.get("course", "")),
@@ -905,8 +904,6 @@ def main() -> None:
                     result.get("material_cache_hit", False)
                 )
                 st.session_state["just_streamed_study_plan"] = True
-                if fallback_material:
-                    material_slot.write(fallback_material)
                 st.success(render_prompt("ui.material_ready_success"))
         except Exception:
             st.error(_safe_ui_error("Failed to prepare study session"))
