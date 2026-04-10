@@ -210,6 +210,8 @@ Checklist of Sprint 3 optional tasks. Marked with ✅ when implemented. For maxi
 6. Implement an agent that can collaborate with other agents in a distributed system. This agent should be able to work with agents running on different machines or in different environments, coordinating their efforts to solve the problem efficiently.
 7. ✅ Deploy your app to the cloud with proper scaling.
 
+**Hard #4 and #5:** Partially covered by Medium work (feedback loop; Wikipedia / external context).
+
 ---
 
 ## License and course context

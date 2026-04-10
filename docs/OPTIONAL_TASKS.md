@@ -209,4 +209,16 @@ This file tracks optional tasks for Sprint 3 and how they are implemented in thi
   - Ephemeral disk: profile/session JSON under `data/memory/` does not persist across Cloud Run instance cycles unless you add external storage
   - Cloud Run service account needs **`roles/secretmanager.secretAccessor`** on the referenced secrets (or project-level) when using `--set-secrets`
 
+### Hard #4 — Create an agent that can learn from user feedback
+
+- **Status:** 🟡 Partially aligned (not a separate “learning agent” module)
+- **Overlap:** **Medium #7 — Feedback loop** — thumbs up/down, reason tags, optional note, persistence per profile, summarized preferences fed into **study material** generation so later outputs adapt. That matches the *intent* of “improve from feedback” at the product level; a strict reading of “agent” might still expect an explicit policy/agent object—call out this mapping in review.
+- **Files (see Medium #7):** `studygraph/ui/app.py`, `studygraph/memory/store.py`, `studygraph/models.py`, `studygraph/graph/workflow.py`, `studygraph/prompts/`
+
+### Hard #5 — Integrate with external data sources to enrich knowledge
+
+- **Status:** 🟡 Partially aligned
+- **Overlap:** **Medium #4** — Wikipedia API tool (`fetch_wikipedia_summary`), optional factual context for study material, UI attribution when used. Broader “many APIs / web agents” is not implemented; the course item is substantially addressed by the Wikipedia integration path.
+- **Files (see Medium #4):** `studygraph/tools/external_knowledge.py`, `studygraph/graph/workflow.py`, `studygraph/ui/app.py`
+
 
